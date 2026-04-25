@@ -7,6 +7,7 @@ import {
 } from '@/lib/submissions-service';
 import { requireRole } from '@/lib/api-auth';
 import { fail, ok } from '@/lib/api-response';
+import { notifySubmissionReviewed } from '@/lib/notifications-triggers';
 
 const idSchema = z.string().uuid();
 
@@ -50,5 +51,6 @@ export async function PATCH(
     reviewNote: parsed.data.reviewNote ?? null,
   });
   if (!result.ok) return fail(result.error, ERROR_STATUS[result.error]);
+  await notifySubmissionReviewed(db, result.value);
   return ok(result.value);
 }

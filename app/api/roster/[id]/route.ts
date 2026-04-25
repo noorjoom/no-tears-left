@@ -8,6 +8,7 @@ import {
 } from '@/lib/roster-service';
 import { requireRole } from '@/lib/api-auth';
 import { fail, ok } from '@/lib/api-response';
+import { notifyRosterReviewed } from '@/lib/notifications-triggers';
 
 const patchSchema = z.object({
   decision: z.enum(['APPROVED', 'REJECTED']),
@@ -70,5 +71,6 @@ export async function PATCH(
   if (!result.ok) {
     return fail(result.error, REVIEW_ERROR_STATUS[result.error]);
   }
+  await notifyRosterReviewed(db, result.value);
   return ok(result.value);
 }

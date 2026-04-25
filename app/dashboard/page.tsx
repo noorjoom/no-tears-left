@@ -4,6 +4,10 @@ import { auth } from '@/lib/auth';
 import { db } from '@/db';
 import { getApplicationForUser } from '@/lib/roster-service';
 import { getTeamsForUser } from '@/lib/teams-service';
+import {
+  countUnreadForUser,
+  listNotificationsForUser,
+} from '@/lib/notifications-service';
 import { safeFetch } from '@/lib/safe-fetch';
 import { Nav } from '@/components/layout/Nav';
 import { Footer } from '@/components/layout/Footer';
@@ -40,6 +44,14 @@ export default async function DashboardPage({
     activeTab === 'teams'
       ? await safeFetch(() => getTeamsForUser(db, userId), [])
       : [];
+  const notifications =
+    activeTab === 'notifications'
+      ? await safeFetch(() => listNotificationsForUser(db, userId), [])
+      : [];
+  const unreadCount =
+    activeTab === 'notifications'
+      ? await safeFetch(() => countUnreadForUser(db, userId), 0)
+      : 0;
 
   return (
     <>
@@ -71,7 +83,12 @@ export default async function DashboardPage({
             <ApplicationTab application={application} />
           ) : null}
           {activeTab === 'teams' ? <TeamsTab teams={teams} /> : null}
-          {activeTab === 'notifications' ? <NotificationsTab /> : null}
+          {activeTab === 'notifications' ? (
+            <NotificationsTab
+              initialItems={notifications}
+              initialUnreadCount={unreadCount}
+            />
+          ) : null}
         </section>
       </main>
       <Footer />

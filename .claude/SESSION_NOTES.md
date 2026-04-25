@@ -29,9 +29,9 @@
 | 6a. Public pages + deferred GETs + leaderboard service | ✓ done | `b6bb717` |
 | 6b. Authenticated dashboard + roster apply + team invite UX | ✓ done | `177d5ee` |
 | 6c. Mod review queues + screenshot upload UI | ✓ done | `9dcb2aa` |
-| 7. Rate limiting (Upstash on 5 mutating endpoints) | ✓ done | (this commit) |
-| **8. Notifications** | **NEXT** | — |
-| 9. Prize pool config | pending | — |
+| 7. Rate limiting (Upstash on 5 mutating endpoints) | ✓ done | `6d9fcf5` |
+| 8. Notifications (in-app, 5 trigger types) | ✓ done | (this commit) |
+| **9. Prize pool config** | **NEXT** | — |
 | 10. E2E tests | pending | — |
 
 ## Phase 4 summary
@@ -319,3 +319,65 @@ npm run build       # must succeed (10 dynamic API routes)
 ```
 
 If any of these fail on a fresh resume, fix that first before adding Phase 5 code.
+
+## Phase 8 summary
+
+In-app notifications shipped. **143 tests passing (+30).** No new migrations — `notifications` table already in schema since Phase 1.
+
+**New files:**
+- `lib/notifications-service.ts` — `createNotification`, `listNotificationsForUser`, `countUnreadForUser`, `markNotificationsRead`, plus 5 pure message-builder helpers. Type discriminator is a 5-value string-literal union.
+- `lib/notifications-triggers.ts` — `notifyRosterReviewed`, `notifySubmissionReviewed`, `notifyPartnerJoined`. All wrapped in try/catch that `console.error`s and swallows — failures must NEVER bubble to the parent route.
+- `app/api/notifications/route.ts` — `GET` (list + unreadCount, supports `?unread=1`) and `PATCH` (mark-read, accepts `{ ids }` OR `{ markAll: true }` via Zod union).
+- `lib/notifications-service.test.ts` — 17 tests (5 builder unit + 12 db ops + cross-user safety).
+- `lib/notifications-triggers.test.ts` — 6 tests (one per trigger event + no-op edge cases).
+- `app/api/notifications/route.test.ts` — 6 tests (GET own/cross-user/unread filter + PATCH self/cross-user/markAll/malformed/401).
+
+**Edits:**
+- `app/api/roster/[id]/route.ts` — calls `notifyRosterReviewed(db, result.value)` after success.
+- `app/api/submissions/[id]/route.ts` — calls `notifySubmissionReviewed(db, result.value)` after success.
+- `app/api/teams/[id]/join/route.ts` and `app/api/teams/join/route.ts` — both call `notifyPartnerJoined(db, result.value)` after success.
+- `components/dashboard/NotificationsTab.tsx` — replaced placeholder with full client island. URL-routed tab fetches `initialItems` + `initialUnreadCount` server-side, then PATCHes `/api/notifications` for mark-read with optimistic updates.
+- `app/dashboard/page.tsx` — fetches notifications via `safeFetch` only when `activeTab === 'notifications'`.
+
+**Trigger event matrix:**
+
+| Event | Recipient | Source row |
+|-------|-----------|------------|
+| `roster_approved` / `roster_rejected` | applicant | rosterApplications row post-update |
+| `submission_verified` / `submission_rejected` | team captain | submissions row post-update |
+| `partner_joined` | team captain | teams row post-join |
+
+Submission notifications include the computed `calcMatchScore(eliminations, placement)` so the captain sees points without needing to re-check the leaderboard.
+
+**Locked-in decisions:**
+- **Captain-only notifications** for partner_joined and submission events. Partner can be added later without schema change.
+- **Best-effort delivery** — triggers run AFTER the parent mutation has already succeeded; catch+log+swallow ensures a missing notification never breaks moderation/join UX.
+- **Cross-user mark-read safety** — `markNotificationsRead` always filters `WHERE userId = $auth.user.id` AND `id IN (...)`. Tested explicitly (test "does NOT touch other users notifications" + route test "cannot mark another user's notification read").
+- **No `link` column** — UI derives deep-links from `type` for v1.
+- **No `(userId, createdAt)` index** added this phase. Defer to scale concern.
+- **No rate-limiting** on `/api/notifications` — read-only auth-gated GET, low-risk PATCH.
+
+### Gotchas / things that bit
+- `RosterDb` is a union of `NodePgDatabase` and `PgliteDatabase`. The partial-returning overload `.returning({ id: notifications.id })` doesn't exist on the union — use no-arg `.returning()` like every other service module.
+- Notifications table inserts are tested by listing post-trigger; `submitted_at`/`createdAt` ordering relies on `defaultNow()` so back-to-back inserts in tests need a `setTimeout(5)` between them to get distinct timestamps.
+- Route tests for `/api/notifications` mock `@/lib/auth` with a fixed UUID for the caller, then seed users with that exact id (PK-insertable).
+- `vi.mocked(authMod.auth).mockResolvedValueOnce(null)` doesn't satisfy the `Session` return type — cast with `as never` for the unauth test.
+
+### Files touched
+
+```
+lib/notifications-service.ts        (new)
+lib/notifications-service.test.ts   (new)
+lib/notifications-triggers.ts       (new)
+lib/notifications-triggers.test.ts  (new)
+app/api/notifications/route.ts      (new)
+app/api/notifications/route.test.ts (new)
+app/api/roster/[id]/route.ts        (edit: trigger call)
+app/api/submissions/[id]/route.ts   (edit: trigger call)
+app/api/teams/[id]/join/route.ts    (edit: trigger call)
+app/api/teams/join/route.ts         (edit: trigger call)
+app/dashboard/page.tsx              (edit: fetch notifications)
+components/dashboard/NotificationsTab.tsx (rewrite: client island)
+.claude/SESSION_NOTES.md            (this file)
+```
+

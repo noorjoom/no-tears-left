@@ -5,6 +5,7 @@ import { joinTeam, type JoinTeamError } from '@/lib/teams-service';
 import { requireUser } from '@/lib/api-auth';
 import { fail, ok } from '@/lib/api-response';
 import { enforceRateLimit, getRateLimiter } from '@/lib/rate-limit';
+import { notifyPartnerJoined } from '@/lib/notifications-triggers';
 
 const bodySchema = z.object({
   inviteToken: z.string().min(1).max(64),
@@ -38,5 +39,6 @@ export async function POST(req: NextRequest) {
 
   const result = await joinTeam(db, parsed.data.inviteToken, auth.user.id);
   if (!result.ok) return fail(result.error, ERROR_STATUS[result.error]);
+  await notifyPartnerJoined(db, result.value);
   return ok(result.value);
 }
