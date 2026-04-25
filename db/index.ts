@@ -1,31 +1,34 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from './schema';
 
 declare global {
   // eslint-disable-next-line no-var
-  var __ntlPgPool: Pool | undefined;
+  var __ntlDb: NodePgDatabase<typeof schema> | undefined;
 }
 
-function getPool(): Pool {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL is not set');
+export function getDb(): NodePgDatabase<typeof schema> {
+  if (!globalThis.__ntlDb) {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL is not set');
+    }
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    globalThis.__ntlDb = drizzle(pool, { schema });
   }
-  if (!globalThis.__ntlPgPool) {
-    globalThis.__ntlPgPool = new Pool({ connectionString: process.env.DATABASE_URL });
-  }
-  return globalThis.__ntlPgPool;
+  return globalThis.__ntlDb;
 }
 
-export const db = drizzle(
-  new Proxy({} as Pool, {
-    get(_target, prop, receiver) {
-      const pool = getPool();
-      const value = Reflect.get(pool, prop, pool);
-      return typeof value === 'function' ? value.bind(pool) : value;
-    },
-  }),
-  { schema },
-);
+/**
+ * Lazy proxy: db.select(), db.insert(), etc. defer connection setup until
+ * first use. Lets modules import { db } at the top level without crashing
+ * during build when DATABASE_URL is unset.
+ */
+export const db = new Proxy({} as NodePgDatabase<typeof schema>, {
+  get(_target, prop) {
+    const real = getDb() as unknown as Record<string | symbol, unknown>;
+    const value = real[prop];
+    return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(real) : value;
+  },
+}) as NodePgDatabase<typeof schema>;
 
 export * from './schema';
