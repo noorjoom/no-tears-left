@@ -11,7 +11,7 @@
 
 ## Where we are
 
-**Last session ended after Phase 5 (Upload flow / signed URLs).**
+**Last session ended after Phase 6a (Public read-only pages + deferred GETs).**
 
 | Phase | Status | Commit |
 |-------|--------|--------|
@@ -25,8 +25,10 @@
 | 4c. Tournaments API + middleware mod-write guard | ✓ done | `feat(api): tournaments...` |
 | 4d. Submissions API | ✓ done | `feat(api): submissions...` |
 | 4. Code review fixes | ✓ done | `ba7224a` |
-| 5. Upload flow (signed URL, server side) | ✓ done | (this commit) |
-| **6. Pages + components (incl. client-side compression)** | **NEXT** | — |
+| 5. Upload flow (signed URL, server side) | ✓ done | `b5a1cd9` |
+| 6a. Public pages + deferred GETs + leaderboard service | ✓ done | (this commit) |
+| **6b. Authenticated dashboard + roster apply form** | **NEXT** | — |
+| 6c. Mod/admin pages + screenshot upload UI | pending | — |
 | 7. Rate limiting (Upstash on 5 mutating endpoints) | pending | — |
 | 8. Notifications | pending | — |
 | 9. Prize pool config | pending | — |
@@ -124,9 +126,56 @@ Each phase ends with: typecheck → build → tests → commit.
 - Client-side image compression + upload UX is **deferred to Phase 6** (lives in components).
 - 11 new tests; 88 total green.
 
-## Phase 6 plan (next up): Pages + components
+## Phase 6a summary
 
-Wire RSC pages + client islands per `ARCHITECTURE.md`. Add the deferred GET endpoints from Phase 4 review (single roster app, mod queue, mod team bypass, submissions listing). Build the screenshot upload UX with client-side compression (`browser-image-compression`) that calls `POST /api/upload-url` then uploads via `PUT` with the returned token.
+Public read paths shipped. RSC pages call services directly; no fetch-from-self.
+
+**New pages (all RSC, `dynamic = 'force-dynamic'`):**
+- `/` — landing with Nav + hero + CTAs
+- `/roster` — approved roster grid
+- `/leaderboard` — cumulative table
+- `/leaderboard/host` — top 5, no nav (OBS view)
+- `/tournaments` — tournament list (DRAFTs hidden)
+- `/tournaments/[id]` — detail + team list
+
+**New components:**
+- `components/layout/Nav.tsx` (server, reads `auth()` for sign-in/dashboard link)
+- `components/layout/Footer.tsx`
+- `components/ui/Badge.tsx`
+- `components/roster/RosterGrid.tsx`
+- `components/leaderboard/LeaderboardTable.tsx`
+- `components/tournaments/TournamentCard.tsx`, `TeamList.tsx`
+
+**New service: `lib/leaderboard-service.ts`**
+- `getCumulativeLeaderboard(db)` — JOIN submissions → teams → tournaments → users (alias for captain & partner). Aggregates VERIFIED only via `calcMatchScore`. Sort: points DESC, then matches DESC. 5 pglite tests.
+- Note: a captain who plays multiple tournaments produces multiple rows (team identity is per-tournament). This matches the team-centric leaderboard concept.
+
+**`lib/safe-fetch.ts`** — wraps service calls in RSC pages so they render an empty fallback when `DATABASE_URL` is unset (dev mode without local Postgres).
+
+**Deferred GET endpoints (filled in this commit):**
+- `GET /api/roster?status=PENDING|APPROVED|REJECTED` (mod-gated in handler; no `?status` is the existing public approved-roster list)
+- `GET /api/roster/[id]` (mod-only single-app fetch with discord username)
+- `GET /api/teams/[id]` — adds MOD/ADMIN bypass via `getTeamById` (members still get the original `getTeamForMember` flow)
+- `GET /api/submissions?teamId=...` (member or mod) and `?status=...` (mod queue)
+
+**Middleware fix:** added literal `/api/submissions` to matcher (the `:path*` form alone didn't cover the bare path needed by the new GET).
+
+**Tailwind tokens used:** `bg-base`, `bg-surface`, `bg-elevated`, `border` (DEFAULT), `text-primary`, `text-muted`, `accent`, `accent-bright`, `chrome`, fonts `display`/`mono`. All defined in `tailwind.config.ts`; nothing new added.
+
+**Tests:** 93 total (was 88, +5 leaderboard). Typecheck + build clean. 18 routes including 6 new pages.
+
+## Phase 6b plan (next up): Authenticated UX
+
+- `/dashboard` with URL-routed tabs (`?tab=application|teams|notifications`) — server component reads tab from search params, renders the right RSC partial.
+- `/roster/apply` — client-island form that POSTs to `/api/roster`. Show cooldown / pending / approved states based on existing application status.
+- Team create + invite UI: captain creates from a tournament detail page CTA; partner clicks an invite link `/teams/join?token=...` (or shows the token to copy).
+- Reuse `Badge`/`Nav`/etc.
+
+## Phase 6c plan (after 6b): Mod/admin + upload UI
+
+- `/admin` with URL-routed tabs (roster queue, tournaments, submissions, settings). Middleware already requires ADMIN.
+- Screenshot upload UX: `browser-image-compression` (target <500KB, hard <5MB) → `POST /api/upload-url` → PUT to signed URL → `POST /api/submissions` with `publicUrl`.
+- Mod review buttons on the queues that PATCH `/api/roster/[id]` and `/api/submissions/[id]`.
 
 ## Files added in Phase 4
 

@@ -3,12 +3,15 @@ import { z } from 'zod';
 import { db } from '@/db';
 import {
   createApplication,
+  listApplicationsByStatus,
   listApprovedRoster,
   type CreateError,
 } from '@/lib/roster-service';
-import { requireUser } from '@/lib/api-auth';
+import { requireRole, requireUser } from '@/lib/api-auth';
 import { fail, ok } from '@/lib/api-response';
 import { PLATFORMS, WHY_TEXT_MAX_LENGTH } from '@/lib/constants';
+
+const STATUS_VALUES = ['PENDING', 'APPROVED', 'REJECTED'] as const;
 
 const createSchema = z.object({
   epicUsername: z.string().trim().min(1).max(64),
@@ -25,7 +28,20 @@ const CREATE_ERROR_STATUS: Record<CreateError, number> = {
   COOLDOWN_ACTIVE: 429,
 };
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const status = req.nextUrl.searchParams.get('status');
+  if (status) {
+    const auth = await requireRole('MOD');
+    if (!auth.ok) return fail(auth.error, auth.status);
+    if (!(STATUS_VALUES as readonly string[]).includes(status)) {
+      return fail('Invalid status', 400);
+    }
+    const list = await listApplicationsByStatus(
+      db,
+      status as (typeof STATUS_VALUES)[number],
+    );
+    return ok(list);
+  }
   const list = await listApprovedRoster(db);
   return ok(list);
 }

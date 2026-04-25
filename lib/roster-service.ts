@@ -29,6 +29,55 @@ export type ServiceResult<T, E = string> =
   | { ok: true; value: T }
   | { ok: false; error: E };
 
+export async function listApplicationsByStatus(
+  db: RosterDb,
+  status: 'PENDING' | 'APPROVED' | 'REJECTED',
+) {
+  return db
+    .select({
+      id: rosterApplications.id,
+      userId: rosterApplications.userId,
+      epicUsername: rosterApplications.epicUsername,
+      platform: rosterApplications.platform,
+      timezone: rosterApplications.timezone,
+      whyText: rosterApplications.whyText,
+      vodUrl: rosterApplications.vodUrl,
+      status: rosterApplications.status,
+      createdAt: rosterApplications.createdAt,
+      discordUsername: users.discordUsername,
+      discordAvatar: users.discordAvatar,
+    })
+    .from(rosterApplications)
+    .innerJoin(users, eq(rosterApplications.userId, users.id))
+    .where(eq(rosterApplications.status, status))
+    .orderBy(desc(rosterApplications.createdAt));
+}
+
+export async function getApplicationById(db: RosterDb, id: string) {
+  const [row] = await db
+    .select({
+      id: rosterApplications.id,
+      userId: rosterApplications.userId,
+      epicUsername: rosterApplications.epicUsername,
+      platform: rosterApplications.platform,
+      timezone: rosterApplications.timezone,
+      whyText: rosterApplications.whyText,
+      vodUrl: rosterApplications.vodUrl,
+      status: rosterApplications.status,
+      reviewedBy: rosterApplications.reviewedBy,
+      reviewNote: rosterApplications.reviewNote,
+      reviewedAt: rosterApplications.reviewedAt,
+      createdAt: rosterApplications.createdAt,
+      discordUsername: users.discordUsername,
+      discordAvatar: users.discordAvatar,
+    })
+    .from(rosterApplications)
+    .innerJoin(users, eq(rosterApplications.userId, users.id))
+    .where(eq(rosterApplications.id, id))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function listApprovedRoster(db: RosterDb) {
   return db
     .select({

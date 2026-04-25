@@ -146,3 +146,14 @@ export async function listSubmissionsForTeam(db: RosterDb, teamId: string) {
     .where(eq(submissions.teamId, teamId))
     .orderBy(desc(submissions.submittedAt));
 }
+
+export async function listSubmissionsByStatus(
+  db: RosterDb,
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED',
+) {
+  return db
+    .select()
+    .from(submissions)
+    .where(eq(submissions.status, status))
+    .orderBy(desc(submissions.submittedAt));
+}

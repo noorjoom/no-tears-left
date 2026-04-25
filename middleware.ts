@@ -85,6 +85,7 @@ export const config = {
     '/api/teams/:path*',
     '/api/tournaments',
     '/api/tournaments/:path*',
+    '/api/submissions',
     '/api/submissions/:path*',
     '/api/upload-url',
     '/api/notifications',

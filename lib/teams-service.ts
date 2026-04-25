@@ -150,6 +150,22 @@ export async function joinTeam(
   return { ok: true, value: updated };
 }
 
+export async function getTeamById(db: RosterDb, teamId: string) {
+  const [team] = await db
+    .select()
+    .from(teams)
+    .where(eq(teams.id, teamId))
+    .limit(1);
+  return team ?? null;
+}
+
+export async function listTeamsByTournament(db: RosterDb, tournamentId: string) {
+  return db
+    .select()
+    .from(teams)
+    .where(eq(teams.tournamentId, tournamentId));
+}
+
 export async function getTeamForMember(
   db: RosterDb,
   teamId: string,
