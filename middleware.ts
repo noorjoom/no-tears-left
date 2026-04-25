@@ -3,11 +3,16 @@ import { edgeAuth } from '@/lib/auth-edge';
 import { hasRole } from '@/lib/role-guard';
 
 const ADMIN_PREFIXES = ['/admin', '/api/admin'];
+
+// MOD-required on non-GET requests; GETs are public.
+const MOD_WRITE_PREFIXES = ['/api/tournaments'];
+
 const AUTHED_PREFIXES = [
   '/dashboard',
   '/roster/apply',
   '/api/roster',
   '/api/teams',
+  '/api/tournaments',
   '/api/submissions',
   '/api/upload-url',
   '/api/notifications',
@@ -18,46 +23,52 @@ const PUBLIC_API_GETS = new Set([
   '/api/tournaments',
 ]);
 
-function requiresMod(pathname: string): boolean {
-  return ADMIN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+function matchesPrefix(prefixes: readonly string[], pathname: string): boolean {
+  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-function requiresAuth(pathname: string): boolean {
-  return AUTHED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+function apiUnauthorized(pathname: string, origin: string) {
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  return NextResponse.redirect(new URL('/', origin));
+}
+
+function apiForbidden(pathname: string, origin: string) {
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  return NextResponse.redirect(new URL('/', origin));
 }
 
 export default edgeAuth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
+  const origin = req.nextUrl.origin;
 
-  // Public GET pass-throughs (e.g. listing roster / tournaments)
-  if (req.method === 'GET' && PUBLIC_API_GETS.has(pathname)) {
+  // Public GET pass-throughs.
+  if (req.method === 'GET') {
+    if (PUBLIC_API_GETS.has(pathname)) return NextResponse.next();
+    if (matchesPrefix(MOD_WRITE_PREFIXES, pathname)) return NextResponse.next();
+  }
+
+  // Admin-only paths.
+  if (matchesPrefix(ADMIN_PREFIXES, pathname)) {
+    if (!session?.user) return apiUnauthorized(pathname, origin);
+    if (!hasRole(session.user.role, 'MOD')) return apiForbidden(pathname, origin);
     return NextResponse.next();
   }
 
-  if (requiresMod(pathname)) {
-    if (!session?.user) {
-      if (pathname.startsWith('/api/')) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-      return NextResponse.redirect(new URL('/', req.nextUrl.origin));
-    }
-    if (!hasRole(session.user.role, 'MOD')) {
-      if (pathname.startsWith('/api/')) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-      return NextResponse.redirect(new URL('/', req.nextUrl.origin));
-    }
+  // MOD-required writes.
+  if (matchesPrefix(MOD_WRITE_PREFIXES, pathname) && req.method !== 'GET') {
+    if (!session?.user) return apiUnauthorized(pathname, origin);
+    if (!hasRole(session.user.role, 'MOD')) return apiForbidden(pathname, origin);
     return NextResponse.next();
   }
 
-  if (requiresAuth(pathname)) {
-    if (!session?.user) {
-      if (pathname.startsWith('/api/')) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-      return NextResponse.redirect(new URL('/', req.nextUrl.origin));
-    }
+  // Authed paths.
+  if (matchesPrefix(AUTHED_PREFIXES, pathname)) {
+    if (!session?.user) return apiUnauthorized(pathname, origin);
   }
 
   return NextResponse.next();
@@ -72,6 +83,8 @@ export const config = {
     '/api/roster',
     '/api/roster/:path*',
     '/api/teams/:path*',
+    '/api/tournaments',
+    '/api/tournaments/:path*',
     '/api/submissions/:path*',
     '/api/upload-url',
     '/api/notifications',
