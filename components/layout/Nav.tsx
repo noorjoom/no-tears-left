@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
+import { hasRole } from '@/lib/role-guard';
 
 export async function Nav() {
   const session = await auth();
   const user = session?.user;
+  const isMod = hasRole(user?.role, 'MOD');
 
   return (
     <header className="border-b border-border bg-bg-base/90 backdrop-blur">
@@ -28,11 +30,20 @@ export async function Nav() {
             </Link>
           </li>
           {user ? (
-            <li>
-              <Link href="/dashboard" className="text-accent hover:text-accent-bright">
-                Dashboard
-              </Link>
-            </li>
+            <>
+              {isMod ? (
+                <li>
+                  <Link href="/mod" className="hover:text-accent">
+                    Mod
+                  </Link>
+                </li>
+              ) : null}
+              <li>
+                <Link href="/dashboard" className="text-accent hover:text-accent-bright">
+                  Dashboard
+                </Link>
+              </li>
+            </>
           ) : (
             <li>
               <a

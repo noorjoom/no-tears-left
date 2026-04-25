@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { createTestDb, type TestDbHandle } from './db-test';
 import {
   createSubmission,
+  listSubmissionsByStatusWithContext,
   reviewSubmission,
 } from './submissions-service';
 import { submissions, teams, tournaments, users } from '@/db/schema';
@@ -209,6 +210,32 @@ describe('submissions-service', () => {
         decision: 'VERIFIED',
       });
       expect(result).toEqual({ ok: false, error: 'NOT_FOUND' });
+    });
+  });
+
+  describe('listSubmissionsByStatusWithContext', () => {
+    it('joins team and tournament for the mod queue', async () => {
+      const s = await setup(h);
+      const created = await createSubmission(
+        h.db,
+        {
+          teamId: s.teamId,
+          matchId: 'm1',
+          eliminations: 5,
+          placement: 3,
+          screenshotUrl: 'https://x/s.png',
+          actorId: s.captain,
+        },
+        NOW,
+      );
+      if (!created.ok) throw new Error('seed failed');
+
+      const queue = await listSubmissionsByStatusWithContext(h.db, 'PENDING');
+      expect(queue).toHaveLength(1);
+      expect(queue[0].teamName).toBe('Team A');
+      expect(queue[0].tournamentName).toBe('Cup');
+      expect(queue[0].captainId).toBe(s.captain);
+      expect(queue[0].partnerId).toBe(s.partner);
     });
   });
 });

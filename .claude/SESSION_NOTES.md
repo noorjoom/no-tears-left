@@ -11,7 +11,7 @@
 
 ## Where we are
 
-**Last session ended after Phase 6b (Authenticated dashboard + roster apply + team invite UX).**
+**Last session ended after Phase 6c (Mod review queues + screenshot upload UI).**
 
 | Phase | Status | Commit |
 |-------|--------|--------|
@@ -27,9 +27,9 @@
 | 4. Code review fixes | ✓ done | `ba7224a` |
 | 5. Upload flow (signed URL, server side) | ✓ done | `b5a1cd9` |
 | 6a. Public pages + deferred GETs + leaderboard service | ✓ done | `b6bb717` |
-| 6b. Authenticated dashboard + roster apply + team invite UX | ✓ done | (this commit) |
-| **6c. Mod/admin pages + screenshot upload UI** | **NEXT** | — |
-| 7. Rate limiting (Upstash on 5 mutating endpoints) | pending | — |
+| 6b. Authenticated dashboard + roster apply + team invite UX | ✓ done | `177d5ee` |
+| 6c. Mod review queues + screenshot upload UI | ✓ done | (this commit) |
+| **7. Rate limiting (Upstash on 5 mutating endpoints)** | **NEXT** | — |
 | 8. Notifications | pending | — |
 | 9. Prize pool config | pending | — |
 | 10. E2E tests | pending | — |
@@ -201,11 +201,43 @@ Authenticated UX shipped. 99 tests passing (was 93, +6 service tests).
 - /roster/apply form ✓
 - Team create + invite + join ✓
 
-## Phase 6c plan (after 6b): Mod/admin + upload UI
+## Phase 6c summary
 
-- `/admin` with URL-routed tabs (roster queue, tournaments, submissions, settings). Middleware already requires ADMIN.
-- Screenshot upload UX: `browser-image-compression` (target <500KB, hard <5MB) → `POST /api/upload-url` → PUT to signed URL → `POST /api/submissions` with `publicUrl`.
-- Mod review buttons on the queues that PATCH `/api/roster/[id]` and `/api/submissions/[id]`.
+Mod review UX + captain submission upload shipped. 100 tests passing (+1).
+
+**New pages:**
+- `/mod` — RSC, gated to MOD+ in middleware AND re-checked in handler. URL-routed tabs (`?tab=roster|submissions`). Renders `ModRosterQueue` / `ModSubmissionsQueue`.
+- `/tournaments/[id]/submit` — RSC, captain-only. Gated by `getTeamForUserInTournament` + captain check. Renders `SubmissionUploadForm`.
+
+**New components:**
+- `components/mod/ModRosterQueue.tsx` — pending applications with approve/reject + optional review note. PATCHes `/api/roster/[id]`. Error code → human message map.
+- `components/mod/ModSubmissionsQueue.tsx` — pending submissions with screenshot preview, computed score, conflict-of-interest banner (captain/partner mod can see entry but not act). PATCHes `/api/submissions/[id]`.
+- `components/submissions/SubmissionUploadForm.tsx` — full upload pipeline: validate → `imageCompression` (target 500KB, hard 5MB) → POST `/api/upload-url` → PUT signed URL → POST `/api/submissions`. Stages: `compressing | uploading | submitting`.
+
+**Service additions:**
+- `lib/submissions-service.ts::listSubmissionsByStatusWithContext` — JOINs teams + tournaments for the mod queue (so we can show team name, tournament name, captain/partner ids for conflict-of-interest detection in the UI). 1 new test.
+
+**Middleware:**
+- Added `MOD_PREFIXES = ['/mod']` plus matcher entry `/mod/:path*`. Defense in depth — `/mod` requires MOD-or-higher in middleware AND `requireRole('MOD')` is re-checked at every PATCH endpoint it calls.
+- `/admin` is intentionally still ADMIN-only and unused (reserved for Phase 9 prize-pool config and role assignment).
+
+**Nav:** Mods/admins now see a "Mod" link to the queue.
+
+**Tournament detail page:** captains see a "Submit a result" CTA when status is OPEN or IN_PROGRESS.
+
+### Gotchas / decisions
+- The signed-URL response envelope is `{ success, data: { signedUrl, publicUrl, ... } }`. Form unwraps `body.data` — easy to forget.
+- `calcMatchScore` signature is `(eliminations, placement)` (positional, not an object) — matches existing scoring.test.ts usage.
+- `browser-image-compression` was already in package.json from a prior phase — no install needed.
+- `Submit result` button intentionally appears for both OPEN and IN_PROGRESS, but the `createSubmission` service is the real source of truth (returns WINDOW_CLOSED if outside startsAt..endsAt).
+- Conflict-of-interest is enforced at the API/service layer; the UI also hides the action buttons as a courtesy and shows a yellow banner.
+- All client components POST to `/api/*`. No Server Actions.
+
+## Phase 6c plan (done — kept for reference)
+
+- /mod URL-routed tabs ✓
+- Submission upload UX (compress → signed URL → PUT → POST) ✓
+- Mod review buttons on queues ✓
 
 ## Files added in Phase 4
 

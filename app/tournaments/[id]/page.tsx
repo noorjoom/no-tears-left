@@ -116,6 +116,16 @@ export default async function TournamentDetailPage({
                     expiresAt={userTeam.inviteExpiresAt}
                   />
                 ) : null}
+                {userTeam.captainId === userId &&
+                (tournament.status === 'OPEN' ||
+                  tournament.status === 'IN_PROGRESS') ? (
+                  <Link
+                    href={`/tournaments/${tournament.id}/submit`}
+                    className="mt-4 mr-3 inline-block rounded border border-accent/40 bg-accent/10 px-4 py-2 text-sm text-accent hover:bg-accent/20"
+                  >
+                    Submit a result
+                  </Link>
+                ) : null}
                 <Link
                   href="/dashboard?tab=teams"
                   className="mt-4 inline-block text-sm text-accent hover:text-accent-bright"

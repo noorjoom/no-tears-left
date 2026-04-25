@@ -4,6 +4,8 @@ import { hasRole } from '@/lib/role-guard';
 
 const ADMIN_PREFIXES = ['/admin', '/api/admin'];
 
+const MOD_PREFIXES = ['/mod'];
+
 // MOD-required on non-GET requests; GETs are public.
 const MOD_WRITE_PREFIXES = ['/api/tournaments'];
 
@@ -59,6 +61,13 @@ export default edgeAuth((req) => {
     return NextResponse.next();
   }
 
+  // Mod-only paths.
+  if (matchesPrefix(MOD_PREFIXES, pathname)) {
+    if (!session?.user) return apiUnauthorized(pathname, origin);
+    if (!hasRole(session.user.role, 'MOD')) return apiForbidden(pathname, origin);
+    return NextResponse.next();
+  }
+
   // MOD-required writes.
   if (matchesPrefix(MOD_WRITE_PREFIXES, pathname) && req.method !== 'GET') {
     if (!session?.user) return apiUnauthorized(pathname, origin);
@@ -77,6 +86,7 @@ export default edgeAuth((req) => {
 export const config = {
   matcher: [
     '/admin/:path*',
+    '/mod/:path*',
     '/dashboard/:path*',
     '/roster/apply',
     '/api/admin/:path*',

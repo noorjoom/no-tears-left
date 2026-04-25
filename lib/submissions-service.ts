@@ -157,3 +157,31 @@ export async function listSubmissionsByStatus(
     .where(eq(submissions.status, status))
     .orderBy(desc(submissions.submittedAt));
 }
+
+export async function listSubmissionsByStatusWithContext(
+  db: RosterDb,
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED',
+) {
+  return db
+    .select({
+      id: submissions.id,
+      teamId: submissions.teamId,
+      teamName: teams.name,
+      captainId: teams.captainId,
+      partnerId: teams.partnerId,
+      tournamentId: submissions.tournamentId,
+      tournamentName: tournaments.name,
+      matchId: submissions.matchId,
+      eliminations: submissions.eliminations,
+      placement: submissions.placement,
+      screenshotUrl: submissions.screenshotUrl,
+      status: submissions.status,
+      submittedAt: submissions.submittedAt,
+      reviewNote: submissions.reviewNote,
+    })
+    .from(submissions)
+    .innerJoin(teams, eq(submissions.teamId, teams.id))
+    .innerJoin(tournaments, eq(submissions.tournamentId, tournaments.id))
+    .where(eq(submissions.status, status))
+    .orderBy(desc(submissions.submittedAt));
+}
