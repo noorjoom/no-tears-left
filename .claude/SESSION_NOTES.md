@@ -11,7 +11,7 @@
 
 ## Where we are
 
-**Last session ended after Phase 4 (Core API routes) including code-review fixes.**
+**Last session ended after Phase 5 (Upload flow / signed URLs).**
 
 | Phase | Status | Commit |
 |-------|--------|--------|
@@ -24,9 +24,9 @@
 | 4b. Teams API | ✓ done | `feat(api): teams routes...` |
 | 4c. Tournaments API + middleware mod-write guard | ✓ done | `feat(api): tournaments...` |
 | 4d. Submissions API | ✓ done | `feat(api): submissions...` |
-| 4. Code review fixes | ✓ done | (will be in next commit) |
-| **5. Upload flow (signed URL + client compression)** | **NEXT** | — |
-| 6. Pages + components | pending | — |
+| 4. Code review fixes | ✓ done | `ba7224a` |
+| 5. Upload flow (signed URL, server side) | ✓ done | (this commit) |
+| **6. Pages + components (incl. client-side compression)** | **NEXT** | — |
 | 7. Rate limiting (Upstash on 5 mutating endpoints) | pending | — |
 | 8. Notifications | pending | — |
 | 9. Prize pool config | pending | — |
@@ -112,15 +112,21 @@ Each phase ends with: typecheck → build → tests → commit.
 - Role checks in middleware AND re-checked in the API route.
 - A mod cannot action their own roster app or their own team's submissions.
 
-## Phase 5 plan (next up): Upload flow
+## Phase 5 summary
 
-`POST /api/upload-url` (already in middleware matcher) — captain or roster applicant requests a signed URL for a Supabase Storage upload.
+`POST /api/upload-url` is wired. Service is `lib/storage-service.ts`; the Supabase adapter (`lib/storage-adapter.ts`) is injected so tests run with a fake. Request body is a Zod discriminated union on `kind` (`'submission' | 'roster'`).
 
-1. Service: `lib/storage-service.ts` — generates a signed URL via `@supabase/supabase-js` with `createSignedUploadUrl`. Path scheme: `${tournamentId}/${teamId}/${matchId}-${uuid}.{ext}` for submissions; `roster/${userId}/${uuid}.{ext}` for roster VOD evidence (if any).
-2. Validate file type (image/png|jpeg|webp) and size (< 5 MB) on the **client** before requesting URL.
-3. Route handler: zod-validates `{ kind: 'submission' | 'roster', tournamentId?, teamId?, filename, contentType }`, auth-checks the relationship (captain owns team, etc.), returns the signed URL.
-4. Client uploads directly. Returns the public URL. Client posts that URL to `POST /api/submissions`.
-5. The screenshot prefix check in `app/api/submissions/route.ts` already validates the URL belongs to the bucket.
+- Submission path: `${tournamentId}/${teamId}/${sanitizedMatchId}-${uuid}.${ext}`. Service requires (a) team belongs to that tournament, (b) caller is captain, (c) tournament status ∈ {OPEN, IN_PROGRESS}, (d) now within `[startsAt, endsAt]`. Defense in depth: `POST /api/submissions` already re-checks captain + window when the actual submission is created.
+- Roster path: `roster/${userId}/${uuid}.${ext}`. Any authed user.
+- Allowed content types: `image/png`, `image/jpeg`, `image/webp`. Extension derived server-side; matchId is sanitized (`[^a-zA-Z0-9_-]` → `_`).
+- Adapter returns `{ signedUrl, token, path }`. Public URL is computed `${publicBaseUrl}/${path}` and matches the prefix that `app/api/submissions/route.ts` whitelists.
+- When `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_STORAGE_BUCKET` are unset, the route returns 503. (The submissions screenshot prefix check stays no-op in that mode, same as before.)
+- Client-side image compression + upload UX is **deferred to Phase 6** (lives in components).
+- 11 new tests; 88 total green.
+
+## Phase 6 plan (next up): Pages + components
+
+Wire RSC pages + client islands per `ARCHITECTURE.md`. Add the deferred GET endpoints from Phase 4 review (single roster app, mod queue, mod team bypass, submissions listing). Build the screenshot upload UX with client-side compression (`browser-image-compression`) that calls `POST /api/upload-url` then uploads via `PUT` with the returned token.
 
 ## Files added in Phase 4
 
