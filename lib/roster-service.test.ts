@@ -98,6 +98,19 @@ describe('roster-service', () => {
       expect(result).toEqual({ ok: false, error: 'COOLDOWN_ACTIVE' });
     });
 
+    it('treats REJECTED with null reviewedAt as cooldown active (fail-safe)', async () => {
+      const userId = await seedUser(h, '1', 'alice');
+      await h.db.insert(rosterApplications).values({
+        userId, epicUsername: 'a', platform: 'PC', timezone: 'UTC', whyText: 'x',
+        status: 'REJECTED',
+        // reviewedAt left null — data anomaly
+      });
+      const result = await createApplication(h.db, {
+        userId, epicUsername: 'a', platform: 'PC', timezone: 'UTC', whyText: 'y',
+      });
+      expect(result).toEqual({ ok: false, error: 'COOLDOWN_ACTIVE' });
+    });
+
     it('allows reapply after cooldown', async () => {
       const userId = await seedUser(h, '1', 'alice');
       const rejectedAt = new Date('2026-03-01T00:00:00Z');

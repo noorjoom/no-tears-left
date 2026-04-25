@@ -6,7 +6,8 @@ import {
   listTournaments,
   type CreateTournamentError,
 } from '@/lib/tournaments-service';
-import { requireRole } from '@/lib/api-auth';
+import { requireRole, requireUser } from '@/lib/api-auth';
+import { hasRole } from '@/lib/role-guard';
 import { fail, ok } from '@/lib/api-response';
 
 const createSchema = z.object({
@@ -24,7 +25,9 @@ const ERROR_STATUS: Record<CreateTournamentError, number> = {
 };
 
 export async function GET() {
-  const list = await listTournaments(db);
+  const session = await requireUser();
+  const includeDrafts = session.ok && hasRole(session.user.role, 'MOD');
+  const list = await listTournaments(db, { includeDrafts });
   return ok(list);
 }
 

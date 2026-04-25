@@ -17,6 +17,13 @@ const createSchema = z.object({
   screenshotUrl: z.string().url().max(500),
 });
 
+function expectedScreenshotPrefix(): string | null {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET;
+  if (!base || !bucket) return null;
+  return `${base.replace(/\/$/, '')}/storage/v1/object/public/${bucket}/`;
+}
+
 const ERROR_STATUS: Record<CreateSubmissionError, number> = {
   TEAM_NOT_FOUND: 404,
   NOT_CAPTAIN: 403,
@@ -38,6 +45,11 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? 'Invalid input', 400);
+  }
+
+  const prefix = expectedScreenshotPrefix();
+  if (prefix && !parsed.data.screenshotUrl.startsWith(prefix)) {
+    return fail('Screenshot URL must point to the configured storage bucket', 400);
   }
 
   const result = await createSubmission(db, {

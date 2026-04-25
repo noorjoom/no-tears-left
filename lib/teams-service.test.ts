@@ -152,6 +152,32 @@ describe('teams-service', () => {
       expect(result).toEqual({ ok: false, error: 'CANNOT_JOIN_OWN' });
     });
 
+    it('concurrent joins: only one wins, second gets TEAM_FULL', async () => {
+      const captain = await seedUser(h, '1', 'cap');
+      const partnerA = await seedUser(h, '2', 'a');
+      const partnerB = await seedUser(h, '3', 'b');
+      const tId = await seedTournament(h, captain);
+      const created = await createTeam(h.db, {
+        tournamentId: tId, captainId: captain, name: 'A',
+      });
+      if (!created.ok) throw new Error('seed failed');
+      const token = created.value.inviteToken!;
+
+      const [r1, r2] = await Promise.all([
+        joinTeam(h.db, token, partnerA),
+        joinTeam(h.db, token, partnerB),
+      ]);
+      const successes = [r1, r2].filter((r) => r.ok);
+      const failures = [r1, r2].filter((r) => !r.ok);
+      expect(successes).toHaveLength(1);
+      expect(failures).toHaveLength(1);
+      // Failure should be TEAM_FULL or INVALID_TOKEN (token cleared after first join)
+      const f = failures[0];
+      if (!f.ok) {
+        expect(['TEAM_FULL', 'INVALID_TOKEN']).toContain(f.error);
+      }
+    });
+
     it('rejects when user already on a team in same tournament', async () => {
       const captainA = await seedUser(h, '1', 'a');
       const captainB = await seedUser(h, '2', 'b');

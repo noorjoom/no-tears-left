@@ -6,7 +6,8 @@ import {
   updateTournament,
   type UpdateTournamentError,
 } from '@/lib/tournaments-service';
-import { requireRole } from '@/lib/api-auth';
+import { requireRole, requireUser } from '@/lib/api-auth';
+import { hasRole } from '@/lib/role-guard';
 import { fail, ok } from '@/lib/api-response';
 
 const idSchema = z.string().uuid();
@@ -33,7 +34,9 @@ export async function GET(
 ) {
   const { id } = await params;
   if (!idSchema.safeParse(id).success) return fail('Invalid id', 400);
-  const t = await getTournament(db, id);
+  const session = await requireUser();
+  const includeDrafts = session.ok && hasRole(session.user.role, 'MOD');
+  const t = await getTournament(db, id, { includeDrafts });
   if (!t) return fail('Not found', 404);
   return ok(t);
 }

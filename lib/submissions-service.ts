@@ -135,6 +135,7 @@ export async function reviewSubmission(
       ),
     )
     .returning();
+  if (!updated) return { ok: false, error: 'NOT_PENDING' };
   return { ok: true, value: updated };
 }
 

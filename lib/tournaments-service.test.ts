@@ -73,7 +73,7 @@ describe('tournaments-service', () => {
     expect(result).toEqual({ ok: false, error: 'INVALID_MAX_TEAMS' });
   });
 
-  it('lists tournaments newest-first by startsAt', async () => {
+  it('lists tournaments newest-first by startsAt (drafts hidden by default)', async () => {
     const mod = await seedMod(h);
     await createTournament(h.db, {
       name: 'Earlier',
@@ -85,8 +85,10 @@ describe('tournaments-service', () => {
     await createTournament(h.db, {
       name: 'Later', ...validDates, createdBy: mod,
     });
-    const list = await listTournaments(h.db);
-    expect(list[0].name).toBe('Later');
+    const all = await listTournaments(h.db, { includeDrafts: true });
+    expect(all[0].name).toBe('Later');
+    const publicList = await listTournaments(h.db);
+    expect(publicList).toHaveLength(0);
   });
 
   it('updates tournament status (DRAFT → OPEN)', async () => {

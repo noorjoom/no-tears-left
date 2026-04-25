@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, ne } from 'drizzle-orm';
 import { tournaments } from '@/db/schema';
 import type { RosterDb } from './roster-service';
 
@@ -27,20 +27,30 @@ export type CreateTournamentError =
   | 'INVALID_DATES'
   | 'INVALID_MAX_TEAMS';
 
-export async function listTournaments(db: RosterDb) {
-  return db
-    .select()
-    .from(tournaments)
-    .orderBy(desc(tournaments.startsAt));
+export async function listTournaments(
+  db: RosterDb,
+  opts: { includeDrafts?: boolean } = {},
+) {
+  const query = db.select().from(tournaments);
+  const filtered = opts.includeDrafts
+    ? query
+    : query.where(ne(tournaments.status, 'DRAFT'));
+  return filtered.orderBy(desc(tournaments.startsAt));
 }
 
-export async function getTournament(db: RosterDb, id: string) {
+export async function getTournament(
+  db: RosterDb,
+  id: string,
+  opts: { includeDrafts?: boolean } = {},
+) {
   const [t] = await db
     .select()
     .from(tournaments)
     .where(eq(tournaments.id, id))
     .limit(1);
-  return t ?? null;
+  if (!t) return null;
+  if (!opts.includeDrafts && t.status === 'DRAFT') return null;
+  return t;
 }
 
 export async function createTournament(
@@ -88,7 +98,7 @@ export async function updateTournament(
   id: string,
   input: UpdateTournamentInput,
 ): Promise<ServiceResult<typeof tournaments.$inferSelect, UpdateTournamentError>> {
-  const existing = await getTournament(db, id);
+  const existing = await getTournament(db, id, { includeDrafts: true });
   if (!existing) return { ok: false, error: 'NOT_FOUND' };
 
   const next = {

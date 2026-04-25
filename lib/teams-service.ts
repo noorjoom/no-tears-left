@@ -1,4 +1,4 @@
-import { and, eq, or } from 'drizzle-orm';
+import { and, eq, isNull, or } from 'drizzle-orm';
 import { teams, tournaments } from '@/db/schema';
 import type { RosterDb } from './roster-service';
 import { INVITE_TOKEN_TTL_MS } from './constants';
@@ -144,8 +144,9 @@ export async function joinTeam(
       inviteToken: null,
       inviteExpiresAt: null,
     })
-    .where(eq(teams.id, team.id))
+    .where(and(eq(teams.id, team.id), isNull(teams.partnerId)))
     .returning();
+  if (!updated) return { ok: false, error: 'TEAM_FULL' };
   return { ok: true, value: updated };
 }
 

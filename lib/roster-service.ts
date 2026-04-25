@@ -69,7 +69,11 @@ export async function createApplication(
   }
 
   const lastReject = existing.find((a) => a.status === 'REJECTED');
-  if (lastReject?.reviewedAt) {
+  if (lastReject) {
+    // Fail-safe: a REJECTED row with a null reviewedAt should still block.
+    if (!lastReject.reviewedAt) {
+      return { ok: false, error: 'COOLDOWN_ACTIVE' };
+    }
     const cooldownMs = ROSTER_REAPPLY_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
     const elapsed = now.getTime() - new Date(lastReject.reviewedAt).getTime();
     if (elapsed < cooldownMs) {
@@ -140,5 +144,6 @@ export async function reviewApplication(
       ),
     )
     .returning();
+  if (!updated) return { ok: false, error: 'NOT_PENDING' };
   return { ok: true, value: updated };
 }

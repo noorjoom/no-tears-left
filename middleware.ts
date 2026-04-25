@@ -55,7 +55,7 @@ export default edgeAuth((req) => {
   // Admin-only paths.
   if (matchesPrefix(ADMIN_PREFIXES, pathname)) {
     if (!session?.user) return apiUnauthorized(pathname, origin);
-    if (!hasRole(session.user.role, 'MOD')) return apiForbidden(pathname, origin);
+    if (!hasRole(session.user.role, 'ADMIN')) return apiForbidden(pathname, origin);
     return NextResponse.next();
   }
 
