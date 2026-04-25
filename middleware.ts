@@ -54,10 +54,15 @@ export default edgeAuth((req) => {
     if (matchesPrefix(MOD_WRITE_PREFIXES, pathname)) return NextResponse.next();
   }
 
-  // Admin-only paths.
+  // Admin-only paths, with one exception: GET /api/admin/prize-pool is MOD+.
   if (matchesPrefix(ADMIN_PREFIXES, pathname)) {
     if (!session?.user) return apiUnauthorized(pathname, origin);
-    if (!hasRole(session.user.role, 'ADMIN')) return apiForbidden(pathname, origin);
+    const isPrizePoolGet =
+      req.method === 'GET' && pathname === '/api/admin/prize-pool';
+    const requiredRole = isPrizePoolGet ? 'MOD' : 'ADMIN';
+    if (!hasRole(session.user.role, requiredRole)) {
+      return apiForbidden(pathname, origin);
+    }
     return NextResponse.next();
   }
 

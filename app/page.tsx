@@ -1,8 +1,16 @@
 import Link from 'next/link';
 import { Nav } from '@/components/layout/Nav';
 import { Footer } from '@/components/layout/Footer';
+import { PrizePoolProgress } from '@/components/prize-pool/PrizePoolProgress';
+import { db } from '@/db';
+import { getConfig } from '@/lib/prize-pool-service';
+import { safeFetch } from '@/lib/safe-fetch';
 
-export default function HomePage() {
+export const dynamic = 'force-dynamic';
+
+export default async function HomePage() {
+  const prizePool = await safeFetch(() => getConfig(db), null);
+
   return (
     <>
       <Nav />
@@ -30,6 +38,11 @@ export default function HomePage() {
             Meet the roster
           </Link>
         </div>
+        {prizePool ? (
+          <div className="mt-16 text-left">
+            <PrizePoolProgress config={prizePool} />
+          </div>
+        ) : null}
       </main>
       <Footer />
     </>

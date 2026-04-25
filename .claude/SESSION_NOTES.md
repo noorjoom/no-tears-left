@@ -30,9 +30,9 @@
 | 6b. Authenticated dashboard + roster apply + team invite UX | ✓ done | `177d5ee` |
 | 6c. Mod review queues + screenshot upload UI | ✓ done | `9dcb2aa` |
 | 7. Rate limiting (Upstash on 5 mutating endpoints) | ✓ done | `6d9fcf5` |
-| 8. Notifications (in-app, 5 trigger types) | ✓ done | (this commit) |
-| **9. Prize pool config** | **NEXT** | — |
-| 10. E2E tests | pending | — |
+| 8. Notifications (in-app, 5 trigger types) | ✓ done | `5ef1a15` |
+| 9. Prize pool config | ✓ done | (this commit) |
+| **10. E2E tests** | **NEXT** | — |
 
 ## Phase 4 summary
 
@@ -380,4 +380,41 @@ app/dashboard/page.tsx              (edit: fetch notifications)
 components/dashboard/NotificationsTab.tsx (rewrite: client island)
 .claude/SESSION_NOTES.md            (this file)
 ```
+
+## Phase 9 summary
+
+Prize pool config shipped. **151 tests passing (+8).** No new migrations — `prize_pool_config` table already in schema since Phase 1.
+
+**New files:**
+- `lib/prize-pool-service.ts` — `getConfig` (singleton-row read), `updateConfig` (upsert with partial updates). Validates non-negative amounts and well-formed Ko-Fi URL.
+- `lib/prize-pool-service.test.ts` — 8 pglite tests (singleton-on-first-call, singleton-on-second-call, partial-preserves-fields, negative goal/current rejected, malformed url rejected, clear-url-with-null).
+- `app/api/admin/prize-pool/route.ts` — `GET` (MOD+) and `PATCH` (ADMIN) handlers. PATCH accepts any subset of `{ goalAmount, currentAmount, koFiUrl }` with at-least-one validation.
+- `components/prize-pool/PrizePoolProgress.tsx` — server component, renders progress bar + Ko-Fi link wrapper. Hides itself when goal is 0 or unset.
+
+**Edits:**
+- `middleware.ts` — narrow exception inside the ADMIN_PREFIXES branch: `GET /api/admin/prize-pool` requires MOD+ (not ADMIN). All other admin paths still ADMIN-strict.
+- `app/page.tsx` — landing page now `force-dynamic`, fetches config server-side via `safeFetch`, renders `PrizePoolProgress` below CTAs.
+
+**Locked-in decisions:**
+- **Singleton row pattern.** No multi-config support; `updateConfig` is read-modify-write on the first row, or insert when none exists.
+- **Defense in depth.** GET MOD-gate enforced in middleware AND re-checked via `requireRole('MOD')` at the handler. PATCH same pattern at ADMIN level.
+- **Public landing page reads directly via service** — no API roundtrip. Visitors don't need auth.
+- **Ko-Fi URL validation** — `URL` parser + http(s) protocol check. Empty/null clears the link.
+- **Admin settings UI deferred.** PATCH endpoint is ready for the eventual `/admin/settings` page (Phase 9.x or later); landing-page consumer is the v1 deliverable.
+
+### Gotchas
+- The `safeFetch` wrapper makes the landing page resilient when `DATABASE_URL` is unset (dev mode) — falls back to null and the progress bar simply doesn't render.
+- The middleware exception is intentionally narrow (exact path match, GET only). Any future admin endpoint defaults to ADMIN-strict.
+
+### Files added in Phase 9
+
+```
+lib/prize-pool-service.ts                 (new)
+lib/prize-pool-service.test.ts            (new)
+app/api/admin/prize-pool/route.ts         (new)
+components/prize-pool/PrizePoolProgress.tsx (new)
+middleware.ts                             (edit: prize-pool GET MOD exception)
+app/page.tsx                              (edit: progress bar)
+```
+
 
