@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { createTeam, type CreateTeamError } from '@/lib/teams-service';
 import { requireUser } from '@/lib/api-auth';
 import { fail, ok } from '@/lib/api-response';
+import { enforceRateLimit, getRateLimiter } from '@/lib/rate-limit';
 
 const createSchema = z.object({
   tournamentId: z.string().uuid(),
@@ -19,6 +20,9 @@ const ERROR_STATUS: Record<CreateTeamError, number> = {
 export async function POST(req: NextRequest) {
   const auth = await requireUser();
   if (!auth.ok) return fail(auth.error, auth.status);
+
+  const limited = await enforceRateLimit(getRateLimiter(), 'teams.create', auth.user.id);
+  if (limited) return limited;
 
   let body: unknown;
   try {

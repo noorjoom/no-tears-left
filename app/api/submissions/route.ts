@@ -10,6 +10,7 @@ import {
 import { getTeamForMember, getTeamById } from '@/lib/teams-service';
 import { requireUser } from '@/lib/api-auth';
 import { fail, ok } from '@/lib/api-response';
+import { enforceRateLimit, getRateLimiter } from '@/lib/rate-limit';
 import { hasRole } from '@/lib/role-guard';
 import { MAX_PLACEMENT, MIN_PLACEMENT } from '@/lib/constants';
 
@@ -80,6 +81,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await requireUser();
   if (!auth.ok) return fail(auth.error, auth.status);
+
+  const limited = await enforceRateLimit(getRateLimiter(), 'submissions.create', auth.user.id);
+  if (limited) return limited;
 
   let body: unknown;
   try {

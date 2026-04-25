@@ -28,9 +28,9 @@
 | 5. Upload flow (signed URL, server side) | ✓ done | `b5a1cd9` |
 | 6a. Public pages + deferred GETs + leaderboard service | ✓ done | `b6bb717` |
 | 6b. Authenticated dashboard + roster apply + team invite UX | ✓ done | `177d5ee` |
-| 6c. Mod review queues + screenshot upload UI | ✓ done | (this commit) |
-| **7. Rate limiting (Upstash on 5 mutating endpoints)** | **NEXT** | — |
-| 8. Notifications | pending | — |
+| 6c. Mod review queues + screenshot upload UI | ✓ done | `9dcb2aa` |
+| 7. Rate limiting (Upstash on 5 mutating endpoints) | ✓ done | (this commit) |
+| **8. Notifications** | **NEXT** | — |
 | 9. Prize pool config | pending | — |
 | 10. E2E tests | pending | — |
 
@@ -238,6 +238,46 @@ Mod review UX + captain submission upload shipped. 100 tests passing (+1).
 - /mod URL-routed tabs ✓
 - Submission upload UX (compress → signed URL → PUT → POST) ✓
 - Mod review buttons on queues ✓
+
+## Phase 7 summary
+
+Upstash rate limiting wired into the 5 mutating endpoints. **113 tests passing (+13).**
+
+**New files:**
+- `lib/rate-limit.ts` — `RateLimiter` adapter interface, `BUCKETS` config, `createRateLimiter()` factory (Upstash sliding-window via `@upstash/ratelimit`, falls back to a noop limiter when `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are unset), `enforceRateLimit()` helper that returns a 429 `NextResponse` with `RATE_LIMITED` body + `Retry-After` header. Singleton via `getRateLimiter()` with `__setRateLimiterForTest` / `__resetRateLimiterForTest` for injection.
+- `lib/rate-limit-fake.ts` — `createFakeRateLimiter({ allow, reset })` test helper. Records calls.
+- `lib/rate-limit.test.ts` — 6 unit tests: BUCKETS values match ARCHITECTURE.md §8, env-driven noop fallback, test override, allow → null, deny → 429 + Retry-After, Retry-After clamped ≥1s.
+- `lib/rate-limit-routes.test.ts` — 7 integration tests. Mocks `./auth` + `@/db` (the db proxy throws on access to prove the rate limiter short-circuits before any DB work). Verifies 429 + RATE_LIMITED + Retry-After on all 5 routes (`/api/roster`, `/api/teams`, `/api/teams/join`, `/api/teams/[id]/join`, `/api/submissions`, `/api/upload-url` — 6 POST handlers, two of which share the `teams.join` bucket). Plus a fail-open passthrough test.
+
+**Edits:**
+- `lib/api-response.ts` — `fail()` accepts an optional `{ headers }` init for `Retry-After`. Backward compatible (existing 2-arg call sites unchanged).
+- 5 route POST handlers each insert `enforceRateLimit(getRateLimiter(), '<bucket>', auth.user.id)` immediately after `requireUser()`, before zod parsing or any DB work.
+- `ARCHITECTURE.md` §8 — limits table updated with bucket names; documents the deliberate exclusion of mod-only PATCH/DELETE endpoints.
+
+**Bucket config (matches ARCHITECTURE.md §8):**
+
+| Bucket | Limit |
+|--------|-------|
+| `roster.apply` | 3 / 24h |
+| `teams.create` | 10 / 1h |
+| `teams.join` (shared by both join routes) | 10 / 1h |
+| `submissions.create` | 30 / 1h |
+| `upload-url` | 30 / 1h |
+
+### Decisions (locked in)
+- **Keying by `userId`** (all 5 endpoints are auth-gated). No IP fallback — Vercel proxies + shared NAT make IP unreliable.
+- **Layer:** Route handler, not Next middleware. Middleware runs before `auth()` resolves the session, so userId keying needs the handler. Defense in depth preserved (middleware still does role checks).
+- **Error envelope unchanged.** Single `error` field with the `RATE_LIMITED` machine code as its value. No new `code` field — keeps existing `fail()` call sites untouched.
+- **Fail-open** when Upstash env vars are unset. In production, a single `console.warn` at module init alerts ops without breaking the route. Same pattern as `storage-adapter.ts`.
+- **Singleton + test override.** `getRateLimiter()` lazily creates one limiter; test code calls `__setRateLimiterForTest(fake)` in `beforeEach` and `__resetRateLimiterForTest()` in `afterEach`.
+
+### Gotchas / things that bit during the build
+- `Ratelimit.slidingWindow()` window-string format: use `"3600 s"`, not `"1h"` — passing the seconds string is the safest portable form.
+- The integration test mocks `@/db` with a Proxy that throws on access. This is intentional: it proves the limiter short-circuits before any DB call. Don't try to "fix" the test by giving it a real db handle.
+- `vi.mock('./auth', ...)` returns a default authed user; the actual route never reaches anything beyond rate-limit when the fake denies, so the body shape only needs to be parseable enough to reach the limiter check (which runs after `requireUser` and before zod). Rate-limit runs **after** auth and **before** zod, so even minimally-shaped bodies trigger the 429 path correctly.
+
+### What was deliberately NOT rate-limited
+PATCH/DELETE on `/api/roster/[id]`, `/api/submissions/[id]`, `/api/teams/[id]`, `/api/tournaments/[id]`, `/api/tournaments`. These are MOD/ADMIN-gated; throttling moderation during a tournament window would harm UX. Documented in ARCHITECTURE.md §8.
 
 ## Files added in Phase 4
 

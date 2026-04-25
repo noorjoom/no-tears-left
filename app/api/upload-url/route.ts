@@ -8,6 +8,7 @@ import {
 import { createSupabaseAdapter } from '@/lib/storage-adapter';
 import { requireUser } from '@/lib/api-auth';
 import { fail, ok } from '@/lib/api-response';
+import { enforceRateLimit, getRateLimiter } from '@/lib/rate-limit';
 
 const contentType = z.enum(['image/png', 'image/jpeg', 'image/webp']);
 
@@ -39,6 +40,9 @@ const ERROR_STATUS: Record<UploadUrlError, number> = {
 export async function POST(req: NextRequest) {
   const auth = await requireUser();
   if (!auth.ok) return fail(auth.error, auth.status);
+
+  const limited = await enforceRateLimit(getRateLimiter(), 'upload-url', auth.user.id);
+  if (limited) return limited;
 
   let body: unknown;
   try {

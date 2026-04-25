@@ -17,6 +17,10 @@ export function ok<T>(data: T, init?: { status?: number }): NextResponse<ApiResp
 export function fail(
   error: string,
   status: number,
+  init?: { headers?: HeadersInit },
 ): NextResponse<ApiResponse<never>> {
-  return NextResponse.json<ApiResponse<never>>({ success: false, error }, { status });
+  return NextResponse.json<ApiResponse<never>>(
+    { success: false, error },
+    { status, headers: init?.headers },
+  );
 }

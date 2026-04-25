@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { joinTeam, type JoinTeamError } from '@/lib/teams-service';
 import { requireUser } from '@/lib/api-auth';
 import { fail, ok } from '@/lib/api-response';
+import { enforceRateLimit, getRateLimiter } from '@/lib/rate-limit';
 
 const bodySchema = z.object({
   inviteToken: z.string().min(1).max(64),
@@ -20,6 +21,9 @@ const ERROR_STATUS: Record<JoinTeamError, number> = {
 export async function POST(req: NextRequest) {
   const auth = await requireUser();
   if (!auth.ok) return fail(auth.error, auth.status);
+
+  const limited = await enforceRateLimit(getRateLimiter(), 'teams.join', auth.user.id);
+  if (limited) return limited;
 
   let body: unknown;
   try {

@@ -363,15 +363,17 @@ Pure functions — no DB dependency, fully unit testable.
 
 ## 8. Rate Limiting (`lib/rate-limit.ts`)
 
-Using Upstash Redis via `@upstash/ratelimit`. Applied per-IP at the API route level.
+Using Upstash Redis via `@upstash/ratelimit` (sliding window). Applied at the route handler layer (after `requireUser`), keyed by `userId`. Fails open when `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are unset (dev/test). 429 responses use the standard `fail()` envelope (`{ success: false, error: 'RATE_LIMITED' }`) and include a `Retry-After` header.
 
-| Endpoint | Limit |
-|----------|-------|
-| `POST /api/roster` | 3 requests / 24h per IP |
-| `POST /api/teams` | 10 requests / 1h per IP |
-| `POST /api/teams/[id]/join` | 10 requests / 1h per IP |
-| `POST /api/submissions` | 30 requests / 1h per IP |
-| `POST /api/upload-url` | 30 requests / 1h per IP |
+| Endpoint | Limit (per userId) | Bucket name |
+|----------|--------------------|-------------|
+| `POST /api/roster` | 3 / 24h | `roster.apply` |
+| `POST /api/teams` | 10 / 1h | `teams.create` |
+| `POST /api/teams/join` and `POST /api/teams/[id]/join` (shared bucket) | 10 / 1h | `teams.join` |
+| `POST /api/submissions` | 30 / 1h | `submissions.create` |
+| `POST /api/upload-url` | 30 / 1h | `upload-url` |
+
+Mod-only PATCH/DELETE endpoints (roster review, submission review, team admin, tournament management) are intentionally **not** rate-limited — the MOD role gate already constrains the abuse surface, and a tournament-day bottleneck on moderation would harm UX.
 
 ---
 

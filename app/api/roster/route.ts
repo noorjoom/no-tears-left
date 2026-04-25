@@ -9,6 +9,7 @@ import {
 } from '@/lib/roster-service';
 import { requireRole, requireUser } from '@/lib/api-auth';
 import { fail, ok } from '@/lib/api-response';
+import { enforceRateLimit, getRateLimiter } from '@/lib/rate-limit';
 import { PLATFORMS, WHY_TEXT_MAX_LENGTH } from '@/lib/constants';
 
 const STATUS_VALUES = ['PENDING', 'APPROVED', 'REJECTED'] as const;
@@ -49,6 +50,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await requireUser();
   if (!auth.ok) return fail(auth.error, auth.status);
+
+  const limited = await enforceRateLimit(getRateLimiter(), 'roster.apply', auth.user.id);
+  if (limited) return limited;
 
   let body: unknown;
   try {
