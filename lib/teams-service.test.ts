@@ -5,6 +5,8 @@ import {
   createTeam,
   deleteTeam,
   getTeamForMember,
+  getTeamForUserInTournament,
+  getTeamsForUser,
   joinTeam,
 } from './teams-service';
 import { teams, tournaments, users } from '@/db/schema';
@@ -273,6 +275,54 @@ describe('teams-service', () => {
       if (!created.ok) throw new Error('seed failed');
       const result = await getTeamForMember(h.db, created.value.id, stranger);
       expect(result).toEqual({ ok: false, error: 'FORBIDDEN' });
+    });
+  });
+
+  describe('getTeamsForUser', () => {
+    it('returns teams where user is captain or partner with tournament info', async () => {
+      const captain = await seedUser(h, '1', 'cap');
+      const partner = await seedUser(h, '2', 'p');
+      const tId = await seedTournament(h, captain);
+      const created = await createTeam(h.db, {
+        tournamentId: tId, captainId: captain, name: 'A',
+      });
+      if (!created.ok) throw new Error('seed failed');
+      await joinTeam(h.db, created.value.inviteToken!, partner);
+
+      const captainTeams = await getTeamsForUser(h.db, captain);
+      expect(captainTeams).toHaveLength(1);
+      expect(captainTeams[0].tournamentName).toBe('Test Tourney');
+      expect(captainTeams[0].partnerId).toBe(partner);
+
+      const partnerTeams = await getTeamsForUser(h.db, partner);
+      expect(partnerTeams).toHaveLength(1);
+    });
+
+    it('returns empty array when user has no teams', async () => {
+      const u = await seedUser(h, '1', 'u');
+      const result = await getTeamsForUser(h.db, u);
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getTeamForUserInTournament', () => {
+    it('returns the team if user is on one in that tournament', async () => {
+      const captain = await seedUser(h, '1', 'cap');
+      const tId = await seedTournament(h, captain);
+      const created = await createTeam(h.db, {
+        tournamentId: tId, captainId: captain, name: 'A',
+      });
+      if (!created.ok) throw new Error('seed failed');
+      const result = await getTeamForUserInTournament(h.db, captain, tId);
+      expect(result?.id).toBe(created.value.id);
+    });
+
+    it('returns null when user has no team in that tournament', async () => {
+      const u = await seedUser(h, '1', 'u');
+      const captain = await seedUser(h, '2', 'cap');
+      const tId = await seedTournament(h, captain);
+      const result = await getTeamForUserInTournament(h.db, u, tId);
+      expect(result).toBeNull();
     });
   });
 });

@@ -11,7 +11,7 @@
 
 ## Where we are
 
-**Last session ended after Phase 6a (Public read-only pages + deferred GETs).**
+**Last session ended after Phase 6b (Authenticated dashboard + roster apply + team invite UX).**
 
 | Phase | Status | Commit |
 |-------|--------|--------|
@@ -26,9 +26,9 @@
 | 4d. Submissions API | ✓ done | `feat(api): submissions...` |
 | 4. Code review fixes | ✓ done | `ba7224a` |
 | 5. Upload flow (signed URL, server side) | ✓ done | `b5a1cd9` |
-| 6a. Public pages + deferred GETs + leaderboard service | ✓ done | (this commit) |
-| **6b. Authenticated dashboard + roster apply form** | **NEXT** | — |
-| 6c. Mod/admin pages + screenshot upload UI | pending | — |
+| 6a. Public pages + deferred GETs + leaderboard service | ✓ done | `b6bb717` |
+| 6b. Authenticated dashboard + roster apply + team invite UX | ✓ done | (this commit) |
+| **6c. Mod/admin pages + screenshot upload UI** | **NEXT** | — |
 | 7. Rate limiting (Upstash on 5 mutating endpoints) | pending | — |
 | 8. Notifications | pending | — |
 | 9. Prize pool config | pending | — |
@@ -164,12 +164,42 @@ Public read paths shipped. RSC pages call services directly; no fetch-from-self.
 
 **Tests:** 93 total (was 88, +5 leaderboard). Typecheck + build clean. 18 routes including 6 new pages.
 
-## Phase 6b plan (next up): Authenticated UX
+## Phase 6b summary
 
-- `/dashboard` with URL-routed tabs (`?tab=application|teams|notifications`) — server component reads tab from search params, renders the right RSC partial.
-- `/roster/apply` — client-island form that POSTs to `/api/roster`. Show cooldown / pending / approved states based on existing application status.
-- Team create + invite UI: captain creates from a tournament detail page CTA; partner clicks an invite link `/teams/join?token=...` (or shows the token to copy).
-- Reuse `Badge`/`Nav`/etc.
+Authenticated UX shipped. 99 tests passing (was 93, +6 service tests).
+
+**New pages:**
+- `/dashboard` — RSC, redirects to `/` if unauthed; URL-routed tabs (`?tab=application|teams|notifications`) per hard rule #5; only fetches data for the active tab.
+- `/roster/apply` — RSC; branches by existing application status (no app / PENDING / APPROVED / REJECTED-cooldown / REJECTED-elapsed → form).
+- `/teams/join?token=...` — RSC; redirects through Discord sign-in with `callbackUrl` preserved when unauthed.
+
+**New services:**
+- `lib/roster-service.ts::getApplicationForUser(db, userId)` — most-recent app per user.
+- `lib/teams-service.ts::getTeamsForUser(db, userId)` — JOINs tournaments for the dashboard list.
+- `lib/teams-service.ts::getTeamForUserInTournament(db, userId, tournamentId)` — used on tournament detail to render captain UX inline.
+
+**New components:**
+- `components/dashboard/`: `ApplicationTab.tsx`, `TeamsTab.tsx`, `NotificationsTab.tsx` (placeholder), `InviteLinkBox.tsx` (client island, clipboard copy).
+- `components/roster/RosterApplyForm.tsx` — client island, fetch POST `/api/roster`, error code → human message map.
+- `components/tournaments/CreateTeamButton.tsx` — captain inline form on tournament detail.
+- `components/teams/JoinTeamForm.tsx` — partner-side confirm.
+
+**New API route:**
+- `POST /api/teams/join` — token-only join (mirror of existing `[id]/join` but path-shape simplified for the join page). Auth-protected via existing `/api/teams/:path*` middleware matcher.
+
+**Tournament detail page** now shows captain/partner state when authed: create-team CTA when no team & status=OPEN, otherwise the team card with InviteLinkBox if open seat, or "registration closed" message.
+
+### Gotchas / decisions
+- All forms POST to `/api/` (no Server Actions — hard rule #1).
+- Auth-redirect strategy on `/teams/join` is in the page (uses `callbackUrl`), not middleware, so the token survives the round trip. Middleware does NOT match `/teams/*`.
+- Error-code → message maps live in client components (small inline records). The service result codes are already stable.
+- `RosterApplyForm` uses `FormData` + `fetch`, not RHF/Zod-on-client, to keep the bundle small. Server-side Zod in `/api/roster` is the source of truth.
+
+## Phase 6b plan (done — kept for reference)
+
+- /dashboard URL-routed tabs ✓
+- /roster/apply form ✓
+- Team create + invite + join ✓
 
 ## Phase 6c plan (after 6b): Mod/admin + upload UI
 

@@ -78,6 +78,16 @@ export async function getApplicationById(db: RosterDb, id: string) {
   return row ?? null;
 }
 
+export async function getApplicationForUser(db: RosterDb, userId: string) {
+  const [row] = await db
+    .select()
+    .from(rosterApplications)
+    .where(eq(rosterApplications.userId, userId))
+    .orderBy(desc(rosterApplications.createdAt))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function listApprovedRoster(db: RosterDb) {
   return db
     .select({

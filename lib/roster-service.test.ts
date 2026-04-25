@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createTestDb, type TestDbHandle } from './db-test';
 import {
   createApplication,
+  getApplicationForUser,
   listApprovedRoster,
   reviewApplication,
 } from './roster-service';
@@ -195,6 +196,28 @@ describe('roster-service', () => {
       expect(list).toHaveLength(1);
       expect(list[0].discordUsername).toBe('alice');
       expect(list[0].epicUsername).toBe('a');
+    });
+  });
+
+  describe('getApplicationForUser', () => {
+    it('returns null when no application exists', async () => {
+      const userId = await seedUser(h, '1', 'alice');
+      const result = await getApplicationForUser(h.db, userId);
+      expect(result).toBeNull();
+    });
+
+    it('returns the most recent application', async () => {
+      const userId = await seedUser(h, '1', 'alice');
+      const first = await createApplication(h.db, {
+        userId,
+        epicUsername: 'a',
+        platform: 'PC',
+        timezone: 'UTC',
+        whyText: 'first',
+      });
+      if (!first.ok) throw new Error('seed failed');
+      const result = await getApplicationForUser(h.db, userId);
+      expect(result?.id).toBe(first.value.id);
     });
   });
 });

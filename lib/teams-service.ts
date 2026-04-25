@@ -166,6 +166,42 @@ export async function listTeamsByTournament(db: RosterDb, tournamentId: string) 
     .where(eq(teams.tournamentId, tournamentId));
 }
 
+export async function getTeamsForUser(db: RosterDb, userId: string) {
+  return db
+    .select({
+      id: teams.id,
+      name: teams.name,
+      tournamentId: teams.tournamentId,
+      captainId: teams.captainId,
+      partnerId: teams.partnerId,
+      inviteToken: teams.inviteToken,
+      inviteExpiresAt: teams.inviteExpiresAt,
+      tournamentName: tournaments.name,
+      tournamentStatus: tournaments.status,
+    })
+    .from(teams)
+    .innerJoin(tournaments, eq(teams.tournamentId, tournaments.id))
+    .where(or(eq(teams.captainId, userId), eq(teams.partnerId, userId)));
+}
+
+export async function getTeamForUserInTournament(
+  db: RosterDb,
+  userId: string,
+  tournamentId: string,
+) {
+  const [row] = await db
+    .select()
+    .from(teams)
+    .where(
+      and(
+        eq(teams.tournamentId, tournamentId),
+        or(eq(teams.captainId, userId), eq(teams.partnerId, userId)),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
 export async function getTeamForMember(
   db: RosterDb,
   teamId: string,
