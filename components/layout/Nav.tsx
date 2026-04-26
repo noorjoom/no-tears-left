@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { hasRole } from '@/lib/role-guard';
+import { SignInButton } from './SignInButton';
+import { SignOutButton } from './SignOutButton';
 
 export async function Nav() {
   const session = await auth();
@@ -43,15 +45,13 @@ export async function Nav() {
                   Dashboard
                 </Link>
               </li>
+              <li>
+                <SignOutButton />
+              </li>
             </>
           ) : (
             <li>
-              <a
-                href="/api/auth/signin"
-                className="rounded border border-accent/40 bg-accent/10 px-3 py-1 text-accent hover:bg-accent/20"
-              >
-                Sign in
-              </a>
+              <SignInButton />
             </li>
           )}
         </ul>

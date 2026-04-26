@@ -51,7 +51,7 @@ These override general instincts. Do not deviate without asking.
 5. **Dashboard and admin pages use URL-routed tabs** (`?tab=...`), not pure client state. Back button must work.
 6. **Discord OAuth is the only login method.** No email/password fallback, ever.
 7. **Role checks belong in middleware and re-checked in the API route.** Defense in depth — never trust just one layer.
-8. **A mod cannot action their own roster application or their own team's submissions.** Enforce at the API layer.
+8. **A mod cannot action their own roster application or their own team's submissions.** Enforce at the API layer. ADMINs are exempt from the self-review block (they are trusted to bypass for unblocking edge cases) — MODs are not.
 
 ---
 

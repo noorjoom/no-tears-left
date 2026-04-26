@@ -163,6 +163,7 @@ export type ReviewError =
 export interface ReviewInput {
   applicationId: string;
   reviewerId: string;
+  reviewerRole: 'MEMBER' | 'MOD' | 'ADMIN';
   decision: 'APPROVED' | 'REJECTED';
   reviewNote?: string | null;
 }
@@ -184,7 +185,7 @@ export async function reviewApplication(
 
   if (!app) return { ok: false, error: 'NOT_FOUND' };
   if (app.status !== 'PENDING') return { ok: false, error: 'NOT_PENDING' };
-  if (app.userId === input.reviewerId) {
+  if (app.userId === input.reviewerId && input.reviewerRole !== 'ADMIN') {
     return { ok: false, error: 'CANNOT_REVIEW_OWN' };
   }
 

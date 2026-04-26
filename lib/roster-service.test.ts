@@ -136,7 +136,7 @@ describe('roster-service', () => {
         userId: applicantId, epicUsername: 'a', platform: 'PC', timezone: 'UTC', whyText: 'x',
       }).returning();
       const result = await reviewApplication(h.db, {
-        applicationId: app.id, reviewerId: modId, decision: 'APPROVED',
+        applicationId: app.id, reviewerId: modId, reviewerRole: 'MOD', decision: 'APPROVED',
       });
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -145,15 +145,30 @@ describe('roster-service', () => {
       }
     });
 
-    it('rejects self-review', async () => {
+    it('rejects self-review for MOD', async () => {
       const applicantId = await seedUser(h, '1', 'alice', 'MOD');
       const [app] = await h.db.insert(rosterApplications).values({
         userId: applicantId, epicUsername: 'a', platform: 'PC', timezone: 'UTC', whyText: 'x',
       }).returning();
       const result = await reviewApplication(h.db, {
-        applicationId: app.id, reviewerId: applicantId, decision: 'APPROVED',
+        applicationId: app.id, reviewerId: applicantId, reviewerRole: 'MOD', decision: 'APPROVED',
       });
       expect(result).toEqual({ ok: false, error: 'CANNOT_REVIEW_OWN' });
+    });
+
+    it('allows ADMIN self-review', async () => {
+      const adminId = await seedUser(h, '1', 'admin', 'ADMIN');
+      const [app] = await h.db.insert(rosterApplications).values({
+        userId: adminId, epicUsername: 'a', platform: 'PC', timezone: 'UTC', whyText: 'x',
+      }).returning();
+      const result = await reviewApplication(h.db, {
+        applicationId: app.id, reviewerId: adminId, reviewerRole: 'ADMIN', decision: 'APPROVED',
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.status).toBe('APPROVED');
+        expect(result.value.reviewedBy).toBe(adminId);
+      }
     });
 
     it('rejects when not pending', async () => {
@@ -164,7 +179,7 @@ describe('roster-service', () => {
         status: 'APPROVED',
       }).returning();
       const result = await reviewApplication(h.db, {
-        applicationId: app.id, reviewerId: modId, decision: 'REJECTED',
+        applicationId: app.id, reviewerId: modId, reviewerRole: 'MOD', decision: 'REJECTED',
       });
       expect(result).toEqual({ ok: false, error: 'NOT_PENDING' });
     });
@@ -174,6 +189,7 @@ describe('roster-service', () => {
       const result = await reviewApplication(h.db, {
         applicationId: '00000000-0000-0000-0000-000000000000',
         reviewerId: modId,
+        reviewerRole: 'MOD',
         decision: 'APPROVED',
       });
       expect(result).toEqual({ ok: false, error: 'NOT_FOUND' });

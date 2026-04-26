@@ -108,9 +108,10 @@ export function ModRosterQueue({ items, reviewerId }: ModRosterQueueProps) {
               rows={2}
               maxLength={500}
               value={notes[it.id] ?? ''}
-              onChange={(e) =>
-                setNotes((prev) => ({ ...prev, [it.id]: e.currentTarget.value }))
-              }
+              onChange={(e) => {
+                const value = e.target.value;
+                setNotes((prev) => ({ ...prev, [it.id]: value }));
+              }}
               className="w-full rounded border border-border bg-bg-base px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
             />
             {errors[it.id] ? (

@@ -65,6 +65,7 @@ export async function PATCH(
   const result = await reviewApplication(db, {
     applicationId: id,
     reviewerId: auth.user.id,
+    reviewerRole: auth.user.role,
     decision: parsed.data.decision,
     reviewNote: parsed.data.reviewNote ?? null,
   });
