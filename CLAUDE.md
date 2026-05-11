@@ -108,11 +108,9 @@ npm test                    # Vitest unit/integration tests
 npm run test:e2e            # Playwright E2E
 npm run db:generate         # Generate Drizzle migration from schema changes
 npm run db:push             # Apply migrations to Supabase
-npm run lint
-npm run typecheck
+npm run lint                # ESLint
+npm run typecheck           # TypeScript check (no emit)
 ```
-
-(These will exist after project init — not all are wired up yet.)
 
 ---
 

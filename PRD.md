@@ -152,30 +152,48 @@ Accessible after Discord login. Sections:
   - Score submission verified/rejected (with optional mod note).
   - Invite link accepted by a partner.
 
-### 4.7 Admin Dashboard
+### 4.7 Moderator Queue
 
-Route: `/admin` — protected; `MOD` and `ADMIN` roles only.
+Route: `/mod` — protected; `MOD` and `ADMIN` roles only. Tab switcher with three sections:
 
-#### Roster Queue
+#### Roster Tab
 - List of pending applications with Discord username, Epic username, platform, timezone, and their written answer.
 - Approve or Reject buttons. Reject shows an optional note field.
-- Audit log: which mod took which action and when.
 
-#### Tournament Management
-- Create, edit, and change tournament status.
-- View all registered teams for a tournament.
-
-#### Score Verification Queue
+#### Submissions Tab
 - Side-by-side view: screenshot on the left, submitted data on the right.
 - **Verify** or **Reject** buttons. Reject sends a notification to the Captain.
-- Audit log: mod who acted, timestamp, action taken.
 
-#### Prize Pool Settings (Admin only)
+#### History Tab
+- Audit log of completed roster actions: which mod approved/rejected, timestamp, and review note.
+- Audit log of completed submission actions: which mod verified/rejected, timestamp, and review note.
+
+### 4.8 Tournament Management (MOD/ADMIN)
+
+Route: `/mod/tournaments` — list all tournaments including DRAFT status. MODs can create, edit, and publish tournaments.
+
+- `/mod/tournaments/new` — Create tournament form (name, description, registration deadline, window, max teams).
+- `/mod/tournaments/[id]/edit` — Edit tournament details and change status (DRAFT → OPEN → IN_PROGRESS → CLOSED → ARCHIVED).
+
+### 4.9 Admin Settings
+
+Route: `/admin/settings` — protected; `ADMIN` role only. Tab switcher with two sections:
+
+#### Roles Tab
+- Search for users by Discord username.
+- Promote MEMBERs to MOD or demote MODs back to MEMBER.
+- ADMINs are immutable (no self-demotion, cannot change other ADMINs).
+
+#### Prize Pool Tab
 - Set the Ko-Fi goal amount (displayed on landing page progress bar).
 - Input the current Ko-Fi raised amount (manually updated for MVP — no API).
+- Update the Ko-Fi link shown on the landing page.
 
-#### Role Management (Admin only)
-- Assign or revoke the `MOD` role for any user.
+### 4.10 Admin Overview
+
+Route: `/admin` — protected; `ADMIN` role only.
+- Dashboard page linking to role management, prize pool settings, mod queue, and tournament management.
+- Quick navigation for admin workflows.
 
 ---
 
@@ -268,11 +286,12 @@ Derived from the NTL logo assets — molten chrome on pitch black.
 | `/tournaments` | Public | List of all tournaments |
 | `/tournaments/[id]` | Public | Tournament detail + team list |
 | `/dashboard` | Logged in | Member dashboard (notifications, teams, application status) |
-| `/admin` | MOD/ADMIN | Overview |
-| `/admin/roster` | MOD/ADMIN | Roster application queue |
-| `/admin/tournaments` | MOD/ADMIN | Tournament management |
-| `/admin/submissions` | MOD/ADMIN | Score verification queue |
-| `/admin/settings` | ADMIN only | Prize pool config, role management |
+| `/mod` | MOD/ADMIN | Moderator queue with tabs: roster (pending apps), submissions (pending scores), history (audit log) |
+| `/mod/tournaments` | MOD/ADMIN | Tournament list (includes DRAFT status) with create/edit forms |
+| `/mod/tournaments/new` | MOD/ADMIN | Create new tournament form |
+| `/mod/tournaments/[id]/edit` | MOD/ADMIN | Edit tournament and change status |
+| `/admin` | ADMIN | Admin overview linking to settings and mod tools |
+| `/admin/settings` | ADMIN | Settings with tabs: roles (promote/demote MODs), prize-pool (Ko-fi goal/amount/link) |
 
 ---
 

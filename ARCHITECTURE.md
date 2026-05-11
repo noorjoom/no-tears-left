@@ -62,6 +62,7 @@ no-tears-left/
 │   │   └── settings/
 │   │       └── page.tsx            # Admin settings — tab-switched (roles, prize-pool)
 │   ├── mod/
+│   │   ├── page.tsx                # MOD queue — tab-switched (roster, submissions, history audit log)
 │   │   └── tournaments/
 │   │       ├── page.tsx            # MOD tournament list (includes DRAFT status)
 │   │       ├── new/
@@ -122,12 +123,15 @@ no-tears-left/
 │   │   ├── MyApplicationTab.tsx
 │   │   ├── MyTeamsTab.tsx
 │   │   └── NotificationsTab.tsx
-│   └── admin/
-│       ├── AdminTabs.tsx           # Tab switcher (client)
-│       ├── RosterQueueTab.tsx
-│       ├── TournamentManagerTab.tsx
-│       ├── SubmissionQueueTab.tsx
-│       └── SettingsTab.tsx         # Prize pool + role management
+│   ├── mod/
+│   │   ├── ModRosterQueue.tsx      # Pending roster applications for approval
+│   │   ├── ModSubmissionsQueue.tsx # Pending submissions for verification
+│   │   ├── ModRosterHistory.tsx    # Audit log: approved/rejected applications
+│   │   └── ModSubmissionsHistory.tsx # Audit log: verified/rejected submissions
+│   ├── admin/
+│   │   ├── RoleManager.tsx         # User search + role assignment form
+│   │   ├── PrizePoolForm.tsx       # Goal/current amount/ko-fi URL editor
+│   │   └── TournamentAdminList.tsx # Tournament list for admin (includes drafts)
 │
 ├── db/
 │   ├── index.ts                    # Drizzle client singleton
@@ -140,7 +144,14 @@ no-tears-left/
 │   ├── rate-limit.ts               # Upstash rate limiter factory
 │   ├── upload.ts                   # Supabase signed URL generation
 │   ├── scoring.ts                  # Points calculation (pure function, easily testable)
+│   ├── roster-service.ts           # Roster queries: listApplicationsByStatus, listReviewedApplications, getApplicationById
+│   ├── submissions-service.ts      # Submission queries: listSubmissionsByStatusWithContext, listReviewedSubmissionsWithContext
 │   ├── users-service.ts            # User queries: getUserById, searchUsers, updateUserRole
+│   ├── tournaments-service.ts      # Tournament queries: listTournaments, getTournamentById, etc.
+│   ├── teams-service.ts            # Team queries: createTeam, getTeamById, joinTeam, etc.
+│   ├── leaderboard-service.ts      # Leaderboard queries: getCumulativeLeaderboard
+│   ├── prize-pool-service.ts       # Prize pool queries: getConfig, updateConfig
+│   ├── notifications-service.ts    # Notification queries and triggers
 │   └── constants.ts                # Placement bonus table, role enums, etc.
 │
 ├── hooks/
