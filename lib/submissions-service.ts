@@ -1,5 +1,6 @@
-import { and, desc, eq } from 'drizzle-orm';
-import { submissions, teams, tournaments } from '@/db/schema';
+import { and, desc, eq, ne } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { submissions, teams, tournaments, users } from '@/db/schema';
 import type { RosterDb } from './roster-service';
 
 export type ServiceResult<T, E = string> =
@@ -184,4 +185,33 @@ export async function listSubmissionsByStatusWithContext(
     .innerJoin(tournaments, eq(submissions.tournamentId, tournaments.id))
     .where(eq(submissions.status, status))
     .orderBy(desc(submissions.submittedAt));
+}
+
+const reviewerUsers = alias(users, 'reviewer');
+
+export async function listReviewedSubmissionsWithContext(
+  db: RosterDb,
+  limit = 50,
+) {
+  return db
+    .select({
+      id: submissions.id,
+      teamName: teams.name,
+      tournamentName: tournaments.name,
+      matchId: submissions.matchId,
+      eliminations: submissions.eliminations,
+      placement: submissions.placement,
+      status: submissions.status,
+      reviewNote: submissions.reviewNote,
+      reviewedAt: submissions.reviewedAt,
+      submittedAt: submissions.submittedAt,
+      reviewerUsername: reviewerUsers.discordUsername,
+    })
+    .from(submissions)
+    .innerJoin(teams, eq(submissions.teamId, teams.id))
+    .innerJoin(tournaments, eq(submissions.tournamentId, tournaments.id))
+    .leftJoin(reviewerUsers, eq(submissions.reviewedBy, reviewerUsers.id))
+    .where(ne(submissions.status, 'PENDING'))
+    .orderBy(desc(submissions.reviewedAt))
+    .limit(limit);
 }

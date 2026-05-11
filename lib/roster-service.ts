@@ -1,4 +1,5 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, ne } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import * as schema from '@/db/schema';
@@ -51,6 +52,32 @@ export async function listApplicationsByStatus(
     .innerJoin(users, eq(rosterApplications.userId, users.id))
     .where(eq(rosterApplications.status, status))
     .orderBy(desc(rosterApplications.createdAt));
+}
+
+const reviewerUsers = alias(users, 'reviewer');
+
+export async function listReviewedApplications(
+  db: RosterDb,
+  limit = 50,
+) {
+  return db
+    .select({
+      id: rosterApplications.id,
+      epicUsername: rosterApplications.epicUsername,
+      platform: rosterApplications.platform,
+      status: rosterApplications.status,
+      reviewNote: rosterApplications.reviewNote,
+      reviewedAt: rosterApplications.reviewedAt,
+      createdAt: rosterApplications.createdAt,
+      applicantUsername: users.discordUsername,
+      reviewerUsername: reviewerUsers.discordUsername,
+    })
+    .from(rosterApplications)
+    .innerJoin(users, eq(rosterApplications.userId, users.id))
+    .leftJoin(reviewerUsers, eq(rosterApplications.reviewedBy, reviewerUsers.id))
+    .where(ne(rosterApplications.status, 'PENDING'))
+    .orderBy(desc(rosterApplications.reviewedAt))
+    .limit(limit);
 }
 
 export async function getApplicationById(db: RosterDb, id: string) {

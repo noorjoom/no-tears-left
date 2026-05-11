@@ -3,17 +3,22 @@ import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { db } from '@/db';
 import { hasRole } from '@/lib/role-guard';
-import { listApplicationsByStatus } from '@/lib/roster-service';
-import { listSubmissionsByStatusWithContext } from '@/lib/submissions-service';
+import { listApplicationsByStatus, listReviewedApplications } from '@/lib/roster-service';
+import {
+  listSubmissionsByStatusWithContext,
+  listReviewedSubmissionsWithContext,
+} from '@/lib/submissions-service';
 import { safeFetch } from '@/lib/safe-fetch';
 import { Nav } from '@/components/layout/Nav';
 import { Footer } from '@/components/layout/Footer';
 import { ModRosterQueue } from '@/components/mod/ModRosterQueue';
 import { ModSubmissionsQueue } from '@/components/mod/ModSubmissionsQueue';
+import { ModRosterHistory } from '@/components/mod/ModRosterHistory';
+import { ModSubmissionsHistory } from '@/components/mod/ModSubmissionsHistory';
 
 export const dynamic = 'force-dynamic';
 
-const TABS = ['roster', 'submissions'] as const;
+const TABS = ['roster', 'submissions', 'history'] as const;
 type Tab = (typeof TABS)[number];
 
 function isTab(value: string | undefined): value is Tab {
@@ -42,6 +47,14 @@ export default async function ModPage({
           () => listSubmissionsByStatusWithContext(db, 'PENDING'),
           [],
         )
+      : [];
+  const rosterHistory =
+    activeTab === 'history'
+      ? await safeFetch(() => listReviewedApplications(db, 50), [])
+      : [];
+  const submissionsHistory =
+    activeTab === 'history'
+      ? await safeFetch(() => listReviewedSubmissionsWithContext(db, 50), [])
       : [];
 
   return (
@@ -72,12 +85,25 @@ export default async function ModPage({
         <section className="mt-8">
           {activeTab === 'roster' ? (
             <ModRosterQueue items={rosterQueue} reviewerId={session.user.id} />
-          ) : (
+          ) : null}
+          {activeTab === 'submissions' ? (
             <ModSubmissionsQueue
               items={submissionsQueue}
               reviewerId={session.user.id}
             />
-          )}
+          ) : null}
+          {activeTab === 'history' ? (
+            <div className="space-y-10">
+              <div>
+                <h2 className="mb-4 text-lg text-chrome">Roster applications</h2>
+                <ModRosterHistory items={rosterHistory} />
+              </div>
+              <div>
+                <h2 className="mb-4 text-lg text-chrome">Submissions</h2>
+                <ModSubmissionsHistory items={submissionsHistory} />
+              </div>
+            </div>
+          ) : null}
         </section>
       </main>
       <Footer />
