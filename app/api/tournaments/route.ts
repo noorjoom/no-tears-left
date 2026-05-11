@@ -9,6 +9,7 @@ import {
 import { requireRole, requireUser } from '@/lib/api-auth';
 import { hasRole } from '@/lib/role-guard';
 import { fail, ok } from '@/lib/api-response';
+import { getRateLimiter, enforceRateLimit } from '@/lib/rate-limit';
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -34,6 +35,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const auth = await requireRole('MOD');
   if (!auth.ok) return fail(auth.error, auth.status);
+
+  const rateLimited = await enforceRateLimit(getRateLimiter(), 'admin.tournaments.write', auth.user.id);
+  if (rateLimited) return rateLimited;
 
   let body: unknown;
   try {

@@ -9,6 +9,7 @@ import {
 import { requireRole, requireUser } from '@/lib/api-auth';
 import { hasRole } from '@/lib/role-guard';
 import { fail, ok } from '@/lib/api-response';
+import { getRateLimiter, enforceRateLimit } from '@/lib/rate-limit';
 
 const idSchema = z.string().uuid();
 
@@ -47,6 +48,9 @@ export async function PATCH(
 ) {
   const auth = await requireRole('MOD');
   if (!auth.ok) return fail(auth.error, auth.status);
+
+  const rateLimited = await enforceRateLimit(getRateLimiter(), 'admin.tournaments.write', auth.user.id);
+  if (rateLimited) return rateLimited;
 
   const { id } = await params;
   if (!idSchema.safeParse(id).success) return fail('Invalid id', 400);

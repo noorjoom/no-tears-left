@@ -10,6 +10,7 @@ export async function Nav() {
   const session = await auth();
   const user = session?.user;
   const isMod = hasRole(user?.role, 'MOD');
+  const isAdmin = hasRole(user?.role, 'ADMIN');
 
   return (
     <header className="border-b border-border bg-bg-base/90 backdrop-blur">
@@ -56,6 +57,20 @@ export async function Nav() {
                 <li>
                   <Link href="/mod" className="hover:text-accent">
                     Mod
+                  </Link>
+                </li>
+              ) : null}
+              {isMod ? (
+                <li>
+                  <Link href="/mod/tournaments" className="hover:text-accent">
+                    Tournaments
+                  </Link>
+                </li>
+              ) : null}
+              {isAdmin ? (
+                <li>
+                  <Link href="/admin/settings" className="hover:text-accent">
+                    Settings
                   </Link>
                 </li>
               ) : null}

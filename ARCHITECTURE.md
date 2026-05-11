@@ -1,7 +1,7 @@
 # Architecture Document — No Tears Left (NTL) MVP
 
-**Version:** 1.0  
-**Date:** 2026-04-24  
+**Version:** 1.1  
+**Date:** 2026-05-11  
 **Stack:** Next.js 15 App Router · Auth.js v5 · Drizzle ORM · Supabase · Tailwind CSS · Vercel Hobby
 
 ---
@@ -58,7 +58,17 @@ no-tears-left/
 │   ├── dashboard/
 │   │   └── page.tsx                # Member dashboard — tab-switched (client)
 │   ├── admin/
-│   │   └── page.tsx                # Admin dashboard — tab-switched (client)
+│   │   ├── page.tsx                # Admin dashboard (legacy, now uses /admin/settings)
+│   │   └── settings/
+│   │       └── page.tsx            # Admin settings — tab-switched (roles, prize-pool)
+│   ├── mod/
+│   │   └── tournaments/
+│   │       ├── page.tsx            # MOD tournament list (includes DRAFT status)
+│   │       ├── new/
+│   │       │   └── page.tsx        # MOD create tournament form
+│   │       └── [id]/
+│   │           └── edit/
+│   │               └── page.tsx    # MOD edit tournament form + status change
 │   └── api/
 │       ├── auth/
 │       │   └── [...nextauth]/
@@ -88,8 +98,10 @@ no-tears-left/
 │       └── admin/
 │           ├── prize-pool/
 │           │   └── route.ts        # GET · PATCH (admin: update goal/current)
-│           └── roles/
-│               └── route.ts        # PATCH (admin: assign/revoke mod role)
+│           ├── roles/
+│           │   └── route.ts        # PATCH (admin: assign/revoke mod role)
+│           └── users/
+│               └── route.ts        # GET (admin: search users by discord username)
 │
 ├── components/
 │   ├── ui/                         # Primitive components (Button, Input, Badge, Modal)
@@ -128,6 +140,7 @@ no-tears-left/
 │   ├── rate-limit.ts               # Upstash rate limiter factory
 │   ├── upload.ts                   # Supabase signed URL generation
 │   ├── scoring.ts                  # Points calculation (pure function, easily testable)
+│   ├── users-service.ts            # User queries: getUserById, searchUsers, updateUserRole
 │   └── constants.ts                # Placement bonus table, role enums, etc.
 │
 ├── hooks/
@@ -252,10 +265,13 @@ export const prizePoolConfig = pgTable('prize_pool_config', {
 Runs on every request before the route handler.
 
 ```
-/admin/*          → require MOD or ADMIN role → redirect to / if not
+/admin/*          → require ADMIN role → redirect to / if not
+/admin/settings   → require ADMIN role → redirect to / if not
+/mod/*            → require MOD or ADMIN role → redirect to / if not
 /dashboard/*      → require any authenticated session → redirect to / if not
 /roster/apply     → require any authenticated session
-/api/admin/*      → require MOD or ADMIN role → 403 if not
+/api/admin/*      → require ADMIN role → 403 if not (specific endpoints re-check role)
+/api/admin/users  → require ADMIN role → 403 if not (search endpoint)
 /api/roster POST  → require authenticated session
 /api/teams/*      → require authenticated session
 /api/submissions  → require authenticated session
@@ -290,10 +306,10 @@ Public routes (no middleware): `/`, `/roster`, `/leaderboard`, `/leaderboard/hos
 ### Tournaments
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/tournaments` | Public | List all tournaments |
-| POST | `/api/tournaments` | MOD+ | Create tournament |
+| GET | `/api/tournaments` | Public | List all tournaments (non-DRAFT) |
+| POST | `/api/tournaments` | MOD+ | Create tournament (rate limited: 50/1h) |
 | GET | `/api/tournaments/[id]` | Public | Tournament detail |
-| PATCH | `/api/tournaments/[id]` | MOD+ | Update status or settings |
+| PATCH | `/api/tournaments/[id]` | MOD+ | Update status or settings (rate limited: 50/1h) |
 
 ### Submissions
 | Method | Path | Auth | Description |
@@ -317,7 +333,8 @@ Public routes (no middleware): `/`, `/roster`, `/leaderboard`, `/leaderboard/hos
 |--------|------|------|-------------|
 | GET | `/api/admin/prize-pool` | MOD+ | Get current config |
 | PATCH | `/api/admin/prize-pool` | ADMIN | Update goal/current/ko-fi URL |
-| PATCH | `/api/admin/roles` | ADMIN | Assign or revoke MOD role |
+| PATCH | `/api/admin/roles` | ADMIN | Assign/revoke MOD role (rate limited: 20/1h) |
+| GET | `/api/admin/users` | ADMIN | Search users by Discord username (rate limited: 120/1h) |
 
 ---
 
@@ -372,8 +389,12 @@ Using Upstash Redis via `@upstash/ratelimit` (sliding window). Applied at the ro
 | `POST /api/teams/join` and `POST /api/teams/[id]/join` (shared bucket) | 10 / 1h | `teams.join` |
 | `POST /api/submissions` | 30 / 1h | `submissions.create` |
 | `POST /api/upload-url` | 30 / 1h | `upload-url` |
+| `POST /api/tournaments` | 50 / 1h | `admin.tournaments.write` |
+| `PATCH /api/tournaments/[id]` | 50 / 1h | `admin.tournaments.write` |
+| `PATCH /api/admin/roles` | 20 / 1h | `admin.roles` |
+| `GET /api/admin/users` | 120 / 1h | `admin.users.search` |
 
-Mod-only PATCH/DELETE endpoints (roster review, submission review, team admin, tournament management) are intentionally **not** rate-limited — the MOD role gate already constrains the abuse surface, and a tournament-day bottleneck on moderation would harm UX.
+Mod-only PATCH/DELETE endpoints (roster review, submission review, team admin) are intentionally **not** rate-limited — the MOD role gate already constrains the abuse surface, and a tournament-day bottleneck on moderation would harm UX. Tournament management endpoints (POST/PATCH) **are** rate-limited to prevent spam creation of tournament drafts.
 
 ---
 
@@ -416,6 +437,8 @@ NEXT_PUBLIC_APP_URL=             # e.g. https://notearsle.ft or localhost:3000
 | Upstash free tier limits (10k commands/day) | LOW | Our traffic volume at launch is well under this |
 | Discord OAuth rate limits | LOW | Not a concern at MVP scale |
 | Mod acting on own application | MEDIUM | API enforces: `reviewedBy !== userId` on roster applications |
+| Admin/Mod self-role changes | MEDIUM | API enforces: cannot change own role, cannot change ADMIN targets; ADMIN bypass allowed for edge cases |
+| User search performance | LOW | Query indexed on `discordUsername` with prefix matching; min 2 chars enforced |
 
 ---
 

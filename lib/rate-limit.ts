@@ -19,7 +19,10 @@ export type BucketName =
   | 'teams.create'
   | 'teams.join'
   | 'submissions.create'
-  | 'upload-url';
+  | 'upload-url'
+  | 'admin.roles'
+  | 'admin.tournaments.write'
+  | 'admin.users.search';
 
 export interface BucketConfig {
   limit: number;
@@ -32,6 +35,9 @@ export const BUCKETS: Record<BucketName, BucketConfig> = {
   'teams.join': { limit: 10, windowSeconds: 60 * 60 },
   'submissions.create': { limit: 30, windowSeconds: 60 * 60 },
   'upload-url': { limit: 30, windowSeconds: 60 * 60 },
+  'admin.roles': { limit: 20, windowSeconds: 60 * 60 },
+  'admin.tournaments.write': { limit: 50, windowSeconds: 60 * 60 },
+  'admin.users.search': { limit: 120, windowSeconds: 60 * 60 },
 };
 
 const NOOP_LIMITER: RateLimiter = {

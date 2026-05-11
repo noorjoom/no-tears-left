@@ -6,7 +6,7 @@ import { createFakeRateLimiter } from './rate-limit-fake';
 
 vi.mock('./auth', () => ({
   auth: vi.fn(async () => ({
-    user: { id: '00000000-0000-0000-0000-000000000001', role: 'MEMBER' },
+    user: { id: '00000000-0000-0000-0000-000000000001', role: 'ADMIN' },
   })),
 }));
 
@@ -93,6 +93,30 @@ describe('Rate limiting on mutating endpoints (denied path)', () => {
     const req = await jsonReq('http://localhost/api/upload-url', {
       kind: 'roster',
       contentType: 'image/png',
+    });
+    await expect429(await POST(req));
+  });
+
+  it('PATCH /api/admin/roles returns 429 when blocked', async () => {
+    const { PATCH } = await import('@/app/api/admin/roles/route');
+    const req = new NextRequest('http://localhost/api/admin/roles', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        targetUserId: '00000000-0000-0000-0000-000000000002',
+        newRole: 'MOD',
+      }),
+    });
+    await expect429(await PATCH(req));
+  });
+
+  it('POST /api/tournaments returns 429 when blocked', async () => {
+    const { POST } = await import('@/app/api/tournaments/route');
+    const req = await jsonReq('http://localhost/api/tournaments', {
+      name: 'Cup',
+      registrationDeadline: '2026-12-01T00:00:00Z',
+      startsAt: '2026-12-02T00:00:00Z',
+      endsAt: '2026-12-03T00:00:00Z',
     });
     await expect429(await POST(req));
   });
