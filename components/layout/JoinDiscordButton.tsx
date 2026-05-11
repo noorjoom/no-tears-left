@@ -9,9 +9,9 @@ export function JoinDiscordButton() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Join our Discord"
-      className="inline-flex items-center gap-1.5 rounded border border-accent/40 bg-accent/10 px-3 py-1 text-accent hover:bg-accent/20"
+      className="inline-flex items-center gap-1.5 rounded border border-accent/40 bg-accent/10 px-4 py-2 text-sm text-accent hover:bg-accent/20"
     >
-      <DiscordIcon className="h-3.5 w-3.5" />
+      <DiscordIcon className="h-4 w-4" />
       <span>Join Discord</span>
     </a>
   );

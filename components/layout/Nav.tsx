@@ -2,9 +2,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { hasRole } from '@/lib/role-guard';
-import { JoinDiscordButton } from './JoinDiscordButton';
 import { SignInButton } from './SignInButton';
-import { SignOutButton } from './SignOutButton';
+import { NavMenu } from './NavMenu';
 
 export async function Nav() {
   const session = await auth();
@@ -47,48 +46,17 @@ export async function Nav() {
           </li>
         </ul>
 
-        <ul className="flex items-center gap-4 justify-self-end text-sm text-text-muted">
-          <li>
-            <JoinDiscordButton />
-          </li>
+        <div className="flex items-center gap-4 justify-self-end text-sm text-text-muted">
           {user ? (
-            <>
-              {isMod ? (
-                <li>
-                  <Link href="/mod" className="hover:text-accent">
-                    Mod
-                  </Link>
-                </li>
-              ) : null}
-              {isMod ? (
-                <li>
-                  <Link href="/mod/tournaments" className="hover:text-accent">
-                    Tournaments
-                  </Link>
-                </li>
-              ) : null}
-              {isAdmin ? (
-                <li>
-                  <Link href="/admin/settings" className="hover:text-accent">
-                    Settings
-                  </Link>
-                </li>
-              ) : null}
-              <li>
-                <Link href="/dashboard" className="text-accent hover:text-accent-bright">
-                  Dashboard
-                </Link>
-              </li>
-              <li>
-                <SignOutButton />
-              </li>
-            </>
+            <NavMenu
+              user={{ name: user.name, image: user.image }}
+              isMod={isMod}
+              isAdmin={isAdmin}
+            />
           ) : (
-            <li>
-              <SignInButton />
-            </li>
+            <SignInButton />
           )}
-        </ul>
+        </div>
       </nav>
     </header>
   );
