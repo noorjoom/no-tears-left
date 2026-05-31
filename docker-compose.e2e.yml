@@ -1,0 +1,19 @@
+# Throwaway Postgres for E2E. Isolated from dev/prod — never points at real data.
+# Brought up by `npm run e2e:db:up`, torn down by `npm run e2e:db:down`.
+services:
+  postgres-e2e:
+    image: postgres:16-alpine
+    container_name: ntl-postgres-e2e
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ntl_e2e
+    ports:
+      - '5433:5432'
+    tmpfs:
+      - /var/lib/postgresql/data # ephemeral — wiped on container stop
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d ntl_e2e']
+      interval: 2s
+      timeout: 3s
+      retries: 15
