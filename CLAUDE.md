@@ -66,7 +66,7 @@ Full palette in `PRD.md` §6. Essentials:
 - Blackletter font is for brand moments only (hero headings, logo). Body uses a clean sans-serif.
 - No warm tones. No gradients except dark-to-darker for depth.
 
-Logo assets live in `assets/` — `ntl.png` is the monogram, `n1.png`/`n2.png`/`n3.png` are wordmark variants.
+Logo assets live in `public/` — `ntl.svg` is the monogram (nav), `n1.svg` is the wordmark (hero). The app favicon is `app/icon.png`.
 
 ---
 

@@ -37,7 +37,7 @@ yarn-error.log*
 *.tsbuildinfo
 
 # claude code local state
-.claude/settings.local.json
+.claude/
 
 # E2E minted auth cookies (regenerated per run)
 tests/e2e/.auth/

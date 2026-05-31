@@ -59,7 +59,7 @@ no-tears-left/
 │   ├── dashboard/
 │   │   └── page.tsx                # Member dashboard — tab-switched (client)
 │   ├── admin/
-│   │   ├── page.tsx                # Admin dashboard (legacy, now uses /admin/settings)
+│   │   ├── page.tsx                # Admin hub — links to settings tabs, mod queue, tournaments
 │   │   └── settings/
 │   │       └── page.tsx            # Admin settings — tab-switched (roles, prize-pool)
 │   ├── mod/
