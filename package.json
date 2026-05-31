@@ -11,6 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run e2e:db:up && npm run e2e:db:push && playwright test",
+    "dev:db:up": "docker compose -f docker-compose.dev.yml up -d --wait",
+    "dev:db:down": "docker compose -f docker-compose.dev.yml down",
     "e2e:db:up": "docker compose -f docker-compose.e2e.yml up -d --wait",
     "e2e:db:down": "docker compose -f docker-compose.e2e.yml down",
     "e2e:db:push": "drizzle-kit push --config=drizzle.e2e.config.ts",

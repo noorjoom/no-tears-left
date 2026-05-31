@@ -1,0 +1,23 @@
+# Local Postgres for development. Isolated from prod — never points at real data.
+# Brought up by `npm run dev:db:up`, torn down by `npm run dev:db:down`.
+# Persistent (named volume) so dev data survives container restarts.
+services:
+  postgres-dev:
+    image: postgres:16-alpine
+    container_name: ntl-postgres-dev
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ntl_dev
+    ports:
+      - '5434:5432'
+    volumes:
+      - ntl-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d ntl_dev']
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  ntl-dev-data:
