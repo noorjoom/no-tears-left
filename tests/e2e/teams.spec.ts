@@ -35,7 +35,8 @@ test('captain creates team -> partner joins via invite token', async ({ browser 
 
   // 3. Team now reads as Full on the tournament detail page.
   await captainPage.reload();
-  await expect(captainPage.getByText('Full')).toBeVisible();
+  // Both the team status badge and the seat-count read "Full" — assert at least one.
+  await expect(captainPage.getByText('Full', { exact: true }).first()).toBeVisible();
 
   await captain.close();
   await partner.close();

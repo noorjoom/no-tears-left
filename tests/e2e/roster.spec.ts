@@ -20,7 +20,7 @@ test('roster apply -> mod approve -> appears on public roster', async ({ browser
   await applicantPage.getByRole('button', { name: /Submit application/ }).click();
 
   await applicantPage.waitForURL('**/dashboard?tab=application');
-  await expect(applicantPage.getByText('PENDING')).toBeVisible();
+  await expect(applicantPage.getByText('PENDING', { exact: true })).toBeVisible();
 
   // 2. Mod approves the pending application.
   const mod = await browser.newContext({ storageState: STORAGE_STATE.mod });

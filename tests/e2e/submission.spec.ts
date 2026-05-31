@@ -5,7 +5,10 @@ import { E2E_IDS } from './seed';
 
 const SCREENSHOT = resolve(process.cwd(), 'tests/e2e/fixtures/screenshot.png');
 const FAKE_SIGNED_URL = 'https://e2e.supabase.co/storage/v1/object/upload/e2e-fake';
-const FAKE_PUBLIC_URL = 'https://e2e.supabase.co/storage/v1/object/public/e2e-fake.png';
+// Must sit under the configured bucket path — /api/submissions validates that the
+// screenshot URL starts with `${SUPABASE_URL}/storage/v1/object/public/${bucket}/`.
+const FAKE_PUBLIC_URL =
+  'https://e2e.supabase.co/storage/v1/object/public/screenshots/e2e-fake.png';
 
 // Core competitive loop: captain submits a result (Supabase upload hop stubbed
 // at the network layer), a mod verifies it, points land on the leaderboard.
