@@ -42,6 +42,7 @@
 no-tears-left/
 ├── app/
 │   ├── layout.tsx                  # Root layout: fonts, theme, session provider
+│   ├── icon.png                    # App favicon (chrome teardrop)
 │   ├── page.tsx                    # Landing page (public)
 │   ├── roster/
 │   │   ├── page.tsx                # Public roster list (RSC)
@@ -108,6 +109,7 @@ no-tears-left/
 │   ├── ui/                         # Primitive components (Button, Input, Badge, Modal)
 │   ├── layout/
 │   │   ├── Nav.tsx                 # Top navigation bar
+│   │   ├── NavMenu.tsx             # Signed-in links collapsed into a Radix dropdown
 │   │   └── Footer.tsx
 │   ├── roster/
 │   │   ├── RosterGrid.tsx          # Approved member cards
@@ -159,8 +161,21 @@ no-tears-left/
 │
 ├── middleware.ts                   # Next.js middleware: session check + role-based redirect
 │
+├── tests/
+│   └── e2e/                        # Playwright E2E suite
+│       ├── global-setup.ts         # Seeds throwaway DB, mints per-role session cookies
+│       ├── seed.ts                 # Deterministic fixtures + actor IDs
+│       ├── helpers/
+│       │   ├── mint-cookie.ts      # Encodes Auth.js JWT → storageState (no real OAuth)
+│       │   └── load-env.ts         # Loads .env.e2e into process.env
+│       ├── fixtures/               # Static upload fixtures (screenshot.png)
+│       └── *.spec.ts               # public · roster · teams · submission · auth.smoke
+│
 ├── drizzle.config.ts               # Drizzle Kit config
+├── drizzle.e2e.config.ts           # Drizzle Kit config pointed at the E2E Docker DB
+├── docker-compose.e2e.yml          # Throwaway Postgres for E2E (port 5433, ephemeral)
 ├── .env.local                      # Local secrets (never committed)
+├── .env.e2e                        # E2E config (test-only values, safe to commit)
 └── .env.example                    # Template with required variable names
 ```
 
@@ -435,6 +450,8 @@ UPSTASH_REDIS_REST_TOKEN=
 NEXT_PUBLIC_APP_URL=             # e.g. https://notearsle.ft or localhost:3000
 ```
 
+The E2E suite uses a separate **`.env.e2e`** (committed — all values are test-only, no real secrets). It points `DATABASE_URL` at the Docker Postgres on port 5433, sets a fixed `AUTH_SECRET` (so minted JWT cookies decode identically across setup and server), `AUTH_TRUST_HOST=true` (production `next start` doesn't auto-trust the host), placeholder Discord/Supabase values, and leaves Upstash unset.
+
 ---
 
 ## 10. Key Technical Constraints & Risks
@@ -468,5 +485,5 @@ This is the sequence that minimizes blocked work:
 9. **Notifications** — last, since they depend on all other mutation flows
 10. **OBS Host View** — simple, fast to build once leaderboard is done
 11. **Prize pool config** — admin settings, landing page progress bar
-12. **E2E tests** — Playwright covering the Register → Play → Rank flow
+12. **E2E tests** — ✅ Playwright suite covering public, roster, teams, and submission flows. Runs against a throwaway Docker Postgres (`docker-compose.e2e.yml`, port 5433, ephemeral `tmpfs`) schema-pushed via `drizzle.e2e.config.ts`. `global-setup.ts` seeds deterministic fixtures (`seed.ts`) and mints per-role Auth.js session cookies directly (`helpers/mint-cookie.ts` encodes the JWT with the same `AUTH_SECRET`) — no live Discord OAuth. App runs under production `next start`, so `.env.e2e` sets `AUTH_TRUST_HOST=true`; Upstash is left unset (rate limiter fails open) and Supabase Storage is network-stubbed per spec. Run with `npm run test:e2e` (brings DB up, pushes schema, runs Playwright); tear down with `npm run e2e:db:down`.
 ```

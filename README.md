@@ -21,7 +21,8 @@ npm run dev
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript check (no emit) |
 | `npm test` | Vitest unit/integration tests |
-| `npm run test:e2e` | Playwright E2E |
+| `npm run test:e2e` | Playwright E2E (needs Docker; brings up Postgres, pushes schema, runs suite) |
+| `npm run e2e:db:down` | Tear down the E2E Docker Postgres |
 | `npm run db:generate` | Generate a Drizzle migration from schema |
 | `npm run db:push` | Apply schema to the configured Postgres |
 
