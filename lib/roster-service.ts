@@ -18,6 +18,7 @@ export interface CreateApplicationInput {
   timezone: string;
   whyText: string;
   vodUrl?: string | null;
+  tiktokUrl?: string | null;
 }
 
 export type CreateError =
@@ -43,6 +44,7 @@ export async function listApplicationsByStatus(
       timezone: rosterApplications.timezone,
       whyText: rosterApplications.whyText,
       vodUrl: rosterApplications.vodUrl,
+      tiktokUrl: rosterApplications.tiktokUrl,
       status: rosterApplications.status,
       createdAt: rosterApplications.createdAt,
       discordUsername: users.discordUsername,
@@ -90,6 +92,7 @@ export async function getApplicationById(db: RosterDb, id: string) {
       timezone: rosterApplications.timezone,
       whyText: rosterApplications.whyText,
       vodUrl: rosterApplications.vodUrl,
+      tiktokUrl: rosterApplications.tiktokUrl,
       status: rosterApplications.status,
       reviewedBy: rosterApplications.reviewedBy,
       reviewNote: rosterApplications.reviewNote,
@@ -123,6 +126,7 @@ export async function listApprovedRoster(db: RosterDb) {
       epicUsername: rosterApplications.epicUsername,
       platform: rosterApplications.platform,
       timezone: rosterApplications.timezone,
+      tiktokUrl: rosterApplications.tiktokUrl,
       discordUsername: users.discordUsername,
       discordAvatar: users.discordAvatar,
     })
@@ -176,6 +180,7 @@ export async function createApplication(
       timezone: input.timezone,
       whyText: input.whyText,
       vodUrl: input.vodUrl ?? null,
+      tiktokUrl: input.tiktokUrl ?? null,
     })
     .returning();
   return { ok: true, value: created };

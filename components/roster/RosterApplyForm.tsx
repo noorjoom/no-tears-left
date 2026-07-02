@@ -28,6 +28,7 @@ export function RosterApplyForm() {
       timezone: String(formData.get('timezone') ?? '').trim(),
       whyText: String(formData.get('whyText') ?? '').trim(),
       vodUrl: String(formData.get('vodUrl') ?? '').trim() || null,
+      tiktokUrl: String(formData.get('tiktokUrl') ?? '').trim() || null,
     };
 
     try {
@@ -144,6 +145,23 @@ export function RosterApplyForm() {
           name="vodUrl"
           type="url"
           maxLength={500}
+          className="mt-1 w-full rounded border border-border bg-bg-base px-3 py-2 text-text-primary focus:border-accent focus:outline-none"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="tiktokUrl"
+          className="block font-mono text-xs uppercase text-text-muted"
+        >
+          TikTok URL (optional)
+        </label>
+        <input
+          id="tiktokUrl"
+          name="tiktokUrl"
+          type="url"
+          maxLength={500}
+          placeholder="https://www.tiktok.com/@yourhandle"
           className="mt-1 w-full rounded border border-border bg-bg-base px-3 py-2 text-text-primary focus:border-accent focus:outline-none"
         />
       </div>

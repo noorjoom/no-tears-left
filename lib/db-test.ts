@@ -35,6 +35,7 @@ CREATE TABLE "roster_applications" (
   "timezone" text NOT NULL,
   "why_text" text NOT NULL,
   "vod_url" text,
+  "tiktok_url" text,
   "status" "application_status" DEFAULT 'PENDING' NOT NULL,
   "reviewed_by" uuid REFERENCES "users"("id"),
   "review_note" text,

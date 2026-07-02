@@ -20,6 +20,15 @@ const createSchema = z.object({
   timezone: z.string().trim().min(1).max(64),
   whyText: z.string().trim().min(1).max(WHY_TEXT_MAX_LENGTH),
   vodUrl: z.string().url().max(500).optional().nullable(),
+  tiktokUrl: z
+    .string()
+    .url()
+    .max(500)
+    .refine((u) => /(^|\.)tiktok\.com$/.test(new URL(u).hostname), {
+      message: 'Must be a tiktok.com URL',
+    })
+    .optional()
+    .nullable(),
 });
 
 const CREATE_ERROR_STATUS: Record<CreateError, number> = {

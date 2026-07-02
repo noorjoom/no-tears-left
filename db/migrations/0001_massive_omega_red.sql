@@ -1,0 +1,1 @@
+ALTER TABLE "roster_applications" ADD COLUMN "tiktok_url" text;

@@ -48,6 +48,7 @@ export const rosterApplications = pgTable('roster_applications', {
   timezone: text('timezone').notNull(),
   whyText: text('why_text').notNull(),
   vodUrl: text('vod_url'),
+  tiktokUrl: text('tiktok_url'),
   status: applicationStatusEnum('status').notNull().default('PENDING'),
   reviewedBy: uuid('reviewed_by').references(() => users.id),
   reviewNote: text('review_note'),

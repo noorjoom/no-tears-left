@@ -39,6 +39,7 @@
     "@electric-sql/pglite": "^0.4.4",
     "@playwright/test": "^1.49.0",
     "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^22.9.0",
     "@types/pg": "^8.11.10",
     "@types/react": "^19.0.0",

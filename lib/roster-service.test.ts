@@ -49,6 +49,22 @@ describe('roster-service', () => {
       }
     });
 
+    it('persists tiktokUrl when provided', async () => {
+      const userId = await seedUser(h, '1', 'alice');
+      const result = await createApplication(h.db, {
+        userId,
+        epicUsername: 'aliceEpic',
+        platform: 'PC',
+        timezone: 'UTC',
+        whyText: 'I want to play',
+        tiktokUrl: 'https://www.tiktok.com/@alice',
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.tiktokUrl).toBe('https://www.tiktok.com/@alice');
+      }
+    });
+
     it('rejects when whyText exceeds 500 chars', async () => {
       const userId = await seedUser(h, '1', 'alice');
       const result = await createApplication(h.db, {
@@ -212,6 +228,24 @@ describe('roster-service', () => {
       expect(list).toHaveLength(1);
       expect(list[0].discordUsername).toBe('alice');
       expect(list[0].epicUsername).toBe('a');
+    });
+
+    it('includes tiktokUrl when set, null otherwise', async () => {
+      const u1 = await seedUser(h, '1', 'alice');
+      const u2 = await seedUser(h, '2', 'bob');
+      await h.db.insert(rosterApplications).values({
+        userId: u1, epicUsername: 'a', platform: 'PC', timezone: 'UTC', whyText: 'x',
+        status: 'APPROVED', tiktokUrl: 'https://www.tiktok.com/@alice',
+      });
+      await h.db.insert(rosterApplications).values({
+        userId: u2, epicUsername: 'b', platform: 'PC', timezone: 'UTC', whyText: 'x',
+        status: 'APPROVED',
+      });
+      const list = await listApprovedRoster(h.db);
+      const alice = list.find((m) => m.epicUsername === 'a');
+      const bob = list.find((m) => m.epicUsername === 'b');
+      expect(alice?.tiktokUrl).toBe('https://www.tiktok.com/@alice');
+      expect(bob?.tiktokUrl).toBeNull();
     });
   });
 
