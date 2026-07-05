@@ -23,11 +23,7 @@ export const tournamentStatusEnum = pgEnum('tournament_status', [
   'CLOSED',
   'ARCHIVED',
 ]);
-export const submissionStatusEnum = pgEnum('submission_status', [
-  'PENDING',
-  'VERIFIED',
-  'REJECTED',
-]);
+export const submissionStatusEnum = pgEnum('submission_status', ['VERIFIED']);
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -99,8 +95,8 @@ export const submissions = pgTable(
     matchId: text('match_id').notNull(),
     eliminations: integer('eliminations').notNull(),
     placement: integer('placement').notNull(),
-    screenshotUrl: text('screenshot_url').notNull(),
-    status: submissionStatusEnum('status').notNull().default('PENDING'),
+    screenshotUrl: text('screenshot_url'),
+    status: submissionStatusEnum('status').notNull().default('VERIFIED'),
     reviewedBy: uuid('reviewed_by').references(() => users.id),
     reviewNote: text('review_note'),
     reviewedAt: timestamp('reviewed_at'),

@@ -1,18 +1,16 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { eq } from 'drizzle-orm';
 import { createTestDb, type TestDbHandle } from './db-test';
 import {
-  createSubmission,
-  listSubmissionsByStatusWithContext,
-  reviewSubmission,
+  createVerifiedSubmission,
+  listSubmissionsWithContext,
+  updateSubmission,
 } from './submissions-service';
-import { submissions, teams, tournaments, users } from '@/db/schema';
+import { users, teams, tournaments } from '@/db/schema';
 
 interface Setup {
   captain: string;
   partner: string;
-  outsider: string;
   mod: string;
   tournamentId: string;
   teamId: string;
@@ -21,7 +19,6 @@ interface Setup {
 async function setup(h: TestDbHandle, opts?: { startsAt?: Date; endsAt?: Date }): Promise<Setup> {
   const [cap] = await h.db.insert(users).values({ discordId: '1', discordUsername: 'cap' }).returning();
   const [par] = await h.db.insert(users).values({ discordId: '2', discordUsername: 'par' }).returning();
-  const [out] = await h.db.insert(users).values({ discordId: '3', discordUsername: 'out' }).returning();
   const [mod] = await h.db.insert(users).values({ discordId: '4', discordUsername: 'mod', role: 'MOD' }).returning();
   const [t] = await h.db.insert(tournaments).values({
     name: 'Cup',
@@ -40,7 +37,6 @@ async function setup(h: TestDbHandle, opts?: { startsAt?: Date; endsAt?: Date })
   return {
     captain: cap.id,
     partner: par.id,
-    outsider: out.id,
     mod: mod.id,
     tournamentId: t.id,
     teamId: team.id,
@@ -58,37 +54,36 @@ describe('submissions-service', () => {
     await h.close();
   });
 
-  describe('createSubmission', () => {
-    it('captain creates a PENDING submission within window', async () => {
+  describe('createVerifiedSubmission', () => {
+    it('mod creates a VERIFIED submission within window', async () => {
       const s = await setup(h);
-      const result = await createSubmission(
+      const result = await createVerifiedSubmission(
         h.db,
         {
           teamId: s.teamId,
           matchId: 'm1',
           eliminations: 5,
           placement: 3,
-          screenshotUrl: 'https://x/s.png',
-          actorId: s.captain,
+          actorId: s.mod,
         },
         NOW,
       );
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.value.status).toBe('PENDING');
+        expect(result.value.status).toBe('VERIFIED');
         expect(result.value.tournamentId).toBe(s.tournamentId);
+        expect(result.value.reviewedBy).toBe(s.mod);
       }
     });
 
-    it('non-captain (partner) cannot submit', async () => {
+    it('mod can enter a result for their own team (no conflict-of-interest block)', async () => {
       const s = await setup(h);
-      const result = await createSubmission(
+      const result = await createVerifiedSubmission(
         h.db,
-        { teamId: s.teamId, matchId: 'm1', eliminations: 1, placement: 1,
-          screenshotUrl: 'u', actorId: s.partner },
+        { teamId: s.teamId, matchId: 'm1', eliminations: 1, placement: 1, actorId: s.captain },
         NOW,
       );
-      expect(result).toEqual({ ok: false, error: 'NOT_CAPTAIN' });
+      expect(result.ok).toBe(true);
     });
 
     it('rejects when window closed (before start)', async () => {
@@ -96,10 +91,9 @@ describe('submissions-service', () => {
         startsAt: new Date('2026-05-01T00:00:00Z'),
         endsAt: new Date('2026-05-02T00:00:00Z'),
       });
-      const result = await createSubmission(
+      const result = await createVerifiedSubmission(
         h.db,
-        { teamId: s.teamId, matchId: 'm1', eliminations: 1, placement: 1,
-          screenshotUrl: 'u', actorId: s.captain },
+        { teamId: s.teamId, matchId: 'm1', eliminations: 1, placement: 1, actorId: s.mod },
         NOW,
       );
       expect(result).toEqual({ ok: false, error: 'WINDOW_CLOSED' });
@@ -110,10 +104,9 @@ describe('submissions-service', () => {
         startsAt: new Date('2026-04-01T00:00:00Z'),
         endsAt: new Date('2026-04-10T00:00:00Z'),
       });
-      const result = await createSubmission(
+      const result = await createVerifiedSubmission(
         h.db,
-        { teamId: s.teamId, matchId: 'm1', eliminations: 1, placement: 1,
-          screenshotUrl: 'u', actorId: s.captain },
+        { teamId: s.teamId, matchId: 'm1', eliminations: 1, placement: 1, actorId: s.mod },
         NOW,
       );
       expect(result).toEqual({ ok: false, error: 'WINDOW_CLOSED' });
@@ -121,17 +114,15 @@ describe('submissions-service', () => {
 
     it('rejects duplicate (match_id, team_id)', async () => {
       const s = await setup(h);
-      const first = await createSubmission(
+      const first = await createVerifiedSubmission(
         h.db,
-        { teamId: s.teamId, matchId: 'm1', eliminations: 1, placement: 1,
-          screenshotUrl: 'u', actorId: s.captain },
+        { teamId: s.teamId, matchId: 'm1', eliminations: 1, placement: 1, actorId: s.mod },
         NOW,
       );
       expect(first.ok).toBe(true);
-      const second = await createSubmission(
+      const second = await createVerifiedSubmission(
         h.db,
-        { teamId: s.teamId, matchId: 'm1', eliminations: 9, placement: 9,
-          screenshotUrl: 'u2', actorId: s.captain },
+        { teamId: s.teamId, matchId: 'm1', eliminations: 9, placement: 9, actorId: s.mod },
         NOW,
       );
       expect(second).toEqual({ ok: false, error: 'DUPLICATE_MATCH' });
@@ -139,103 +130,89 @@ describe('submissions-service', () => {
 
     it('returns TEAM_NOT_FOUND for missing team', async () => {
       const s = await setup(h);
-      const result = await createSubmission(
+      const result = await createVerifiedSubmission(
         h.db,
         { teamId: '00000000-0000-0000-0000-000000000000', matchId: 'm1',
-          eliminations: 1, placement: 1, screenshotUrl: 'u', actorId: s.captain },
+          eliminations: 1, placement: 1, actorId: s.mod },
         NOW,
       );
       expect(result).toEqual({ ok: false, error: 'TEAM_NOT_FOUND' });
     });
   });
 
-  describe('reviewSubmission', () => {
-    async function seedPendingSubmission(s: Setup) {
-      const [sub] = await h.db.insert(submissions).values({
-        teamId: s.teamId, tournamentId: s.tournamentId,
-        matchId: 'm1', eliminations: 5, placement: 2,
-        screenshotUrl: 'u',
-      }).returning();
-      return sub.id;
-    }
-
-    it('outsider mod verifies submission', async () => {
+  describe('updateSubmission', () => {
+    it('edits eliminations and placement on an existing submission', async () => {
       const s = await setup(h);
-      // promote outsider to MOD for this test
-      await h.db.update(users).set({ role: 'MOD' }).where(eq(users.id, s.outsider));
-      const subId = await seedPendingSubmission(s);
-      const result = await reviewSubmission(h.db, {
-        submissionId: subId, reviewerId: s.outsider, decision: 'VERIFIED',
+      const created = await createVerifiedSubmission(
+        h.db,
+        { teamId: s.teamId, matchId: 'm1', eliminations: 5, placement: 3, actorId: s.mod },
+        NOW,
+      );
+      if (!created.ok) throw new Error('seed failed');
+
+      const result = await updateSubmission(h.db, {
+        submissionId: created.value.id,
+        eliminations: 8,
+        placement: 1,
       });
       expect(result.ok).toBe(true);
-      if (result.ok) expect(result.value.status).toBe('VERIFIED');
-    });
-
-    it('captain (on team) cannot review own submission', async () => {
-      const s = await setup(h);
-      const subId = await seedPendingSubmission(s);
-      const result = await reviewSubmission(h.db, {
-        submissionId: subId, reviewerId: s.captain, decision: 'VERIFIED',
-      });
-      expect(result).toEqual({ ok: false, error: 'CONFLICT_OF_INTEREST' });
-    });
-
-    it('partner (on team) cannot review own team submission', async () => {
-      const s = await setup(h);
-      const subId = await seedPendingSubmission(s);
-      const result = await reviewSubmission(h.db, {
-        submissionId: subId, reviewerId: s.partner, decision: 'VERIFIED',
-      });
-      expect(result).toEqual({ ok: false, error: 'CONFLICT_OF_INTEREST' });
-    });
-
-    it('rejects when not pending', async () => {
-      const s = await setup(h);
-      const [sub] = await h.db.insert(submissions).values({
-        teamId: s.teamId, tournamentId: s.tournamentId,
-        matchId: 'm1', eliminations: 5, placement: 2,
-        screenshotUrl: 'u', status: 'VERIFIED',
-      }).returning();
-      const result = await reviewSubmission(h.db, {
-        submissionId: sub.id, reviewerId: s.mod, decision: 'REJECTED',
-      });
-      expect(result).toEqual({ ok: false, error: 'NOT_PENDING' });
+      if (result.ok) {
+        expect(result.value.eliminations).toBe(8);
+        expect(result.value.placement).toBe(1);
+      }
     });
 
     it('returns NOT_FOUND for unknown id', async () => {
-      const s = await setup(h);
-      const result = await reviewSubmission(h.db, {
+      const result = await updateSubmission(h.db, {
         submissionId: '00000000-0000-0000-0000-000000000000',
-        reviewerId: s.mod,
-        decision: 'VERIFIED',
+        eliminations: 1,
       });
       expect(result).toEqual({ ok: false, error: 'NOT_FOUND' });
     });
+
+    it('rejects rename to a duplicate (match_id, team_id)', async () => {
+      const s = await setup(h);
+      const first = await createVerifiedSubmission(
+        h.db,
+        { teamId: s.teamId, matchId: 'm1', eliminations: 1, placement: 1, actorId: s.mod },
+        NOW,
+      );
+      const second = await createVerifiedSubmission(
+        h.db,
+        { teamId: s.teamId, matchId: 'm2', eliminations: 1, placement: 1, actorId: s.mod },
+        NOW,
+      );
+      if (!first.ok || !second.ok) throw new Error('seed failed');
+
+      const result = await updateSubmission(h.db, {
+        submissionId: second.value.id,
+        matchId: 'm1',
+      });
+      expect(result).toEqual({ ok: false, error: 'DUPLICATE_MATCH' });
+    });
   });
 
-  describe('listSubmissionsByStatusWithContext', () => {
-    it('joins team and tournament for the mod queue', async () => {
+  describe('listSubmissionsWithContext', () => {
+    it('joins team and tournament for the mod history view', async () => {
       const s = await setup(h);
-      const created = await createSubmission(
+      const created = await createVerifiedSubmission(
         h.db,
         {
           teamId: s.teamId,
           matchId: 'm1',
           eliminations: 5,
           placement: 3,
-          screenshotUrl: 'https://x/s.png',
-          actorId: s.captain,
+          actorId: s.mod,
         },
         NOW,
       );
       if (!created.ok) throw new Error('seed failed');
 
-      const queue = await listSubmissionsByStatusWithContext(h.db, 'PENDING');
-      expect(queue).toHaveLength(1);
-      expect(queue[0].teamName).toBe('Team A');
-      expect(queue[0].tournamentName).toBe('Cup');
-      expect(queue[0].captainId).toBe(s.captain);
-      expect(queue[0].partnerId).toBe(s.partner);
+      const list = await listSubmissionsWithContext(h.db);
+      expect(list).toHaveLength(1);
+      expect(list[0].teamName).toBe('Team A');
+      expect(list[0].tournamentName).toBe('Cup');
+      expect(list[0].reviewerUsername).toBe('mod');
     });
   });
 });

@@ -16,7 +16,7 @@ CREATE TYPE "role" AS ENUM('MEMBER', 'MOD', 'ADMIN');
 CREATE TYPE "platform" AS ENUM('PC', 'CONSOLE');
 CREATE TYPE "application_status" AS ENUM('PENDING', 'APPROVED', 'REJECTED');
 CREATE TYPE "tournament_status" AS ENUM('DRAFT', 'OPEN', 'IN_PROGRESS', 'CLOSED', 'ARCHIVED');
-CREATE TYPE "submission_status" AS ENUM('PENDING', 'VERIFIED', 'REJECTED');
+CREATE TYPE "submission_status" AS ENUM('VERIFIED');
 
 CREATE TABLE "users" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -74,8 +74,8 @@ CREATE TABLE "submissions" (
   "match_id" text NOT NULL,
   "eliminations" integer NOT NULL,
   "placement" integer NOT NULL,
-  "screenshot_url" text NOT NULL,
-  "status" "submission_status" DEFAULT 'PENDING' NOT NULL,
+  "screenshot_url" text,
+  "status" "submission_status" DEFAULT 'VERIFIED' NOT NULL,
   "reviewed_by" uuid REFERENCES "users"("id"),
   "review_note" text,
   "reviewed_at" timestamp,

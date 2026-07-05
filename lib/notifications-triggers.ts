@@ -7,7 +7,6 @@ import {
   buildPartnerJoinedMessage,
   buildRosterApprovedMessage,
   buildRosterRejectedMessage,
-  buildSubmissionRejectedMessage,
   buildSubmissionVerifiedMessage,
   createNotification,
 } from './notifications-service';
@@ -40,7 +39,7 @@ export async function notifyRosterReviewed(
   }
 }
 
-export async function notifySubmissionReviewed(
+export async function notifySubmissionAdded(
   db: RosterDb,
   submission: Submission,
 ): Promise<void> {
@@ -59,33 +58,18 @@ export async function notifySubmissionReviewed(
       .limit(1);
     if (!tourney) return;
 
-    if (submission.status === 'VERIFIED') {
-      const points = calcMatchScore(
-        submission.eliminations,
-        submission.placement,
-      );
-      await createNotification(db, {
-        userId: team.captainId,
-        type: 'submission_verified',
-        message: buildSubmissionVerifiedMessage({
-          tournamentName: tourney.name,
-          matchId: submission.matchId,
-          points,
-        }),
-      });
-    } else if (submission.status === 'REJECTED') {
-      await createNotification(db, {
-        userId: team.captainId,
-        type: 'submission_rejected',
-        message: buildSubmissionRejectedMessage({
-          tournamentName: tourney.name,
-          matchId: submission.matchId,
-          reviewNote: submission.reviewNote,
-        }),
-      });
-    }
+    const points = calcMatchScore(submission.eliminations, submission.placement);
+    await createNotification(db, {
+      userId: team.captainId,
+      type: 'submission_verified',
+      message: buildSubmissionVerifiedMessage({
+        tournamentName: tourney.name,
+        matchId: submission.matchId,
+        points,
+      }),
+    });
   } catch (err) {
-    console.error('notifySubmissionReviewed failed', err);
+    console.error('notifySubmissionAdded failed', err);
   }
 }
 

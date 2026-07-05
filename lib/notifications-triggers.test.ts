@@ -11,7 +11,7 @@ import {
 import {
   notifyPartnerJoined,
   notifyRosterReviewed,
-  notifySubmissionReviewed,
+  notifySubmissionAdded,
 } from './notifications-triggers';
 import { listNotificationsForUser } from './notifications-service';
 
@@ -93,8 +93,9 @@ describe('notification triggers', () => {
     expect(notes[0].message).toContain('try harder');
   });
 
-  it('notifySubmissionReviewed VERIFIED notifies captain with computed points', async () => {
+  it('notifySubmissionAdded notifies captain with computed points', async () => {
     const captainId = await seedUser(h, '1', 'cap');
+    const modId = await seedUser(h, '9', 'mod');
     const t = await seedTournament(h, captainId);
     const [team] = await h.db
       .insert(teams)
@@ -112,44 +113,17 @@ describe('notification triggers', () => {
         matchId: 'm-1',
         eliminations: 5,
         placement: 1, // bonus 10 → total 15
-        screenshotUrl: 'https://x/y',
         status: 'VERIFIED',
+        reviewedBy: modId,
       })
       .returning();
 
-    await notifySubmissionReviewed(h.db, sub);
+    await notifySubmissionAdded(h.db, sub);
     const notes = await listNotificationsForUser(h.db, captainId);
     expect(notes).toHaveLength(1);
     expect(notes[0].type).toBe('submission_verified');
     expect(notes[0].message).toContain('15');
     expect(notes[0].message).toContain('m-1');
-  });
-
-  it('notifySubmissionReviewed REJECTED notifies captain with reviewNote', async () => {
-    const captainId = await seedUser(h, '1', 'cap');
-    const t = await seedTournament(h, captainId);
-    const [team] = await h.db
-      .insert(teams)
-      .values({ tournamentId: t.id, captainId, name: 'A' })
-      .returning();
-    const [sub] = await h.db
-      .insert(submissions)
-      .values({
-        teamId: team.id,
-        tournamentId: t.id,
-        matchId: 'm-2',
-        eliminations: 3,
-        placement: 5,
-        screenshotUrl: 'https://x/y',
-        status: 'REJECTED',
-        reviewNote: 'blurry',
-      })
-      .returning();
-
-    await notifySubmissionReviewed(h.db, sub);
-    const notes = await listNotificationsForUser(h.db, captainId);
-    expect(notes[0].type).toBe('submission_rejected');
-    expect(notes[0].message).toContain('blurry');
   });
 
   it('notifyPartnerJoined notifies captain with partner username', async () => {

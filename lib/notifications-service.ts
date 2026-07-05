@@ -153,21 +153,6 @@ export function buildSubmissionVerifiedMessage(
   return `Your submission for match ${input.matchId} in ${input.tournamentName} was verified (${input.points} pts).`;
 }
 
-export interface SubmissionRejectedMessageInput {
-  tournamentName: string;
-  matchId: string;
-  reviewNote: string | null | undefined;
-}
-
-export function buildSubmissionRejectedMessage(
-  input: SubmissionRejectedMessageInput,
-): string {
-  const base = `Your submission for match ${input.matchId} in ${input.tournamentName} was rejected.`;
-  return input.reviewNote && input.reviewNote.trim().length > 0
-    ? `${base} Reviewer note: ${input.reviewNote.trim()}`
-    : base;
-}
-
 export interface PartnerJoinedMessageInput {
   teamName: string;
   partnerDiscordUsername: string;

@@ -4,15 +4,14 @@ import { auth } from '@/lib/auth';
 import { db } from '@/db';
 import { hasRole } from '@/lib/role-guard';
 import { listApplicationsByStatus, listReviewedApplications } from '@/lib/roster-service';
-import {
-  listSubmissionsByStatusWithContext,
-  listReviewedSubmissionsWithContext,
-} from '@/lib/submissions-service';
+import { listSubmissionsWithContext } from '@/lib/submissions-service';
+import { listTournaments } from '@/lib/tournaments-service';
+import { listTeamsByTournament } from '@/lib/teams-service';
 import { safeFetch } from '@/lib/safe-fetch';
 import { Nav } from '@/components/layout/Nav';
 import { Footer } from '@/components/layout/Footer';
 import { ModRosterQueue } from '@/components/mod/ModRosterQueue';
-import { ModSubmissionsQueue } from '@/components/mod/ModSubmissionsQueue';
+import { ModSubmissionEntryForm } from '@/components/mod/ModSubmissionEntryForm';
 import { ModRosterHistory } from '@/components/mod/ModRosterHistory';
 import { ModSubmissionsHistory } from '@/components/mod/ModSubmissionsHistory';
 
@@ -41,12 +40,19 @@ export default async function ModPage({
     activeTab === 'roster'
       ? await safeFetch(() => listApplicationsByStatus(db, 'PENDING'), [])
       : [];
-  const submissionsQueue =
+  const entryTournaments =
     activeTab === 'submissions'
-      ? await safeFetch(
-          () => listSubmissionsByStatusWithContext(db, 'PENDING'),
-          [],
-        )
+      ? await safeFetch(() => listTournaments(db), [])
+      : [];
+  const entryTeams =
+    activeTab === 'submissions'
+      ? (
+          await Promise.all(
+            entryTournaments.map((t) =>
+              safeFetch(() => listTeamsByTournament(db, t.id), []),
+            ),
+          )
+        ).flat()
       : [];
   const rosterHistory =
     activeTab === 'history'
@@ -54,7 +60,7 @@ export default async function ModPage({
       : [];
   const submissionsHistory =
     activeTab === 'history'
-      ? await safeFetch(() => listReviewedSubmissionsWithContext(db, 50), [])
+      ? await safeFetch(() => listSubmissionsWithContext(db, 50), [])
       : [];
 
   return (
@@ -87,9 +93,9 @@ export default async function ModPage({
             <ModRosterQueue items={rosterQueue} reviewerId={session.user.id} />
           ) : null}
           {activeTab === 'submissions' ? (
-            <ModSubmissionsQueue
-              items={submissionsQueue}
-              reviewerId={session.user.id}
+            <ModSubmissionEntryForm
+              tournaments={entryTournaments}
+              teams={entryTeams}
             />
           ) : null}
           {activeTab === 'history' ? (

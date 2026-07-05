@@ -9,7 +9,7 @@ import { applyEnvFile } from './helpers/load-env';
  *
  * Fixture layout (kept disjoint per spec so fullyParallel runs don't collide):
  *   - tournA (no team) -> teams.spec  (captain creates, partner joins via UI token)
- *   - tournB + teamB  -> submission.spec  (captain submits, then mod verifies)
+ *   - tournB + teamB  -> submission.spec  (mod enters a match result)
  *   - tournC + teamC  -> public.spec leaderboard (pre-verified submission)
  *   - rosterMember    -> public.spec roster grid (approved application)
  *   - freshApplicant  -> roster.spec (no application yet; applies in-test)

@@ -2,25 +2,25 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/db';
 import {
-  reviewSubmission,
-  type ReviewSubmissionError,
+  updateSubmission,
+  type UpdateSubmissionError,
 } from '@/lib/submissions-service';
 import { requireRole } from '@/lib/api-auth';
 import { fail, ok } from '@/lib/api-response';
-import { notifySubmissionReviewed } from '@/lib/notifications-triggers';
+import { MAX_PLACEMENT, MIN_PLACEMENT } from '@/lib/constants';
 
 const idSchema = z.string().uuid();
 
 const patchSchema = z.object({
-  decision: z.enum(['VERIFIED', 'REJECTED']),
-  reviewNote: z.string().trim().max(500).optional().nullable(),
+  matchId: z.string().trim().min(1).max(64).optional(),
+  eliminations: z.number().int().min(0).max(100).optional(),
+  placement: z.number().int().min(MIN_PLACEMENT).max(MAX_PLACEMENT).optional(),
+  screenshotUrl: z.string().url().max(500).nullable().optional(),
 });
 
-const ERROR_STATUS: Record<ReviewSubmissionError, number> = {
+const ERROR_STATUS: Record<UpdateSubmissionError, number> = {
   NOT_FOUND: 404,
-  NOT_PENDING: 409,
-  CONFLICT_OF_INTEREST: 403,
-  INVALID_DECISION: 400,
+  DUPLICATE_MATCH: 409,
 };
 
 export async function PATCH(
@@ -44,13 +44,10 @@ export async function PATCH(
     return fail(parsed.error.issues[0]?.message ?? 'Invalid input', 400);
   }
 
-  const result = await reviewSubmission(db, {
+  const result = await updateSubmission(db, {
     submissionId: id,
-    reviewerId: auth.user.id,
-    decision: parsed.data.decision,
-    reviewNote: parsed.data.reviewNote ?? null,
+    ...parsed.data,
   });
   if (!result.ok) return fail(result.error, ERROR_STATUS[result.error]);
-  await notifySubmissionReviewed(db, result.value);
   return ok(result.value);
 }

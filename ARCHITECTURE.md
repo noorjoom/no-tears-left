@@ -127,9 +127,9 @@ no-tears-left/
 │   │   └── NotificationsTab.tsx
 │   ├── mod/
 │   │   ├── ModRosterQueue.tsx      # Pending roster applications for approval
-│   │   ├── ModSubmissionsQueue.tsx # Pending submissions for verification
+│   │   ├── ModSubmissionEntryForm.tsx # Mod enters a match result after reviewing screenshot on Discord
 │   │   ├── ModRosterHistory.tsx    # Audit log: approved/rejected applications
-│   │   └── ModSubmissionsHistory.tsx # Audit log: verified/rejected submissions
+│   │   └── ModSubmissionsHistory.tsx # Audit log of entered submissions; inline edit
 │   ├── admin/
 │   │   ├── RoleManager.tsx         # User search + role assignment form
 │   │   ├── PrizePoolForm.tsx       # Goal/current amount/ko-fi URL editor
@@ -147,7 +147,7 @@ no-tears-left/
 │   ├── upload.ts                   # Supabase signed URL generation
 │   ├── scoring.ts                  # Points calculation (pure function, easily testable)
 │   ├── roster-service.ts           # Roster queries: listApplicationsByStatus, listReviewedApplications, getApplicationById
-│   ├── submissions-service.ts      # Submission queries: listSubmissionsByStatusWithContext, listReviewedSubmissionsWithContext
+│   ├── submissions-service.ts      # Submission queries: createVerifiedSubmission, updateSubmission, listSubmissionsWithContext
 │   ├── users-service.ts            # User queries: getUserById, searchUsers, updateUserRole
 │   ├── tournaments-service.ts      # Tournament queries: listTournaments, getTournamentById, etc.
 │   ├── teams-service.ts            # Team queries: createTeam, getTeamById, joinTeam, etc.
@@ -168,7 +168,6 @@ no-tears-left/
 │       ├── helpers/
 │       │   ├── mint-cookie.ts      # Encodes Auth.js JWT → storageState (no real OAuth)
 │       │   └── load-env.ts         # Loads .env.e2e into process.env
-│       ├── fixtures/               # Static upload fixtures (screenshot.png)
 │       └── *.spec.ts               # public · roster · teams · submission · auth.smoke
 │
 ├── drizzle.config.ts               # Drizzle Kit config
@@ -190,7 +189,7 @@ export const roleEnum = pgEnum('role', ['MEMBER', 'MOD', 'ADMIN']);
 export const platformEnum = pgEnum('platform', ['PC', 'CONSOLE']);
 export const applicationStatusEnum = pgEnum('application_status', ['PENDING', 'APPROVED', 'REJECTED']);
 export const tournamentStatusEnum = pgEnum('tournament_status', ['DRAFT', 'OPEN', 'IN_PROGRESS', 'CLOSED', 'ARCHIVED']);
-export const submissionStatusEnum = pgEnum('submission_status', ['PENDING', 'VERIFIED', 'REJECTED']);
+export const submissionStatusEnum = pgEnum('submission_status', ['VERIFIED']);
 
 export const users = pgTable('users', {
   id:              uuid('id').defaultRandom().primaryKey(),
@@ -247,8 +246,8 @@ export const submissions = pgTable('submissions', {
   matchId:       text('match_id').notNull(),
   eliminations:  integer('eliminations').notNull(),
   placement:     integer('placement').notNull(),
-  screenshotUrl: text('screenshot_url').notNull(),
-  status:        submissionStatusEnum('status').notNull().default('PENDING'),
+  screenshotUrl: text('screenshot_url'),  // optional Discord message link
+  status:        submissionStatusEnum('status').notNull().default('VERIFIED'),
   reviewedBy:    uuid('reviewed_by').references(() => users.id),
   reviewNote:    text('review_note'),
   reviewedAt:    timestamp('reviewed_at'),
@@ -260,7 +259,7 @@ export const submissions = pgTable('submissions', {
 export const notifications = pgTable('notifications', {
   id:        uuid('id').defaultRandom().primaryKey(),
   userId:    uuid('user_id').notNull().references(() => users.id),
-  type:      text('type').notNull(),   // 'roster_approved' | 'roster_rejected' | 'submission_verified' | 'submission_rejected' | 'partner_joined'
+  type:      text('type').notNull(),   // 'roster_approved' | 'roster_rejected' | 'submission_verified' | 'partner_joined'
   message:   text('message').notNull(),
   read:      boolean('read').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -300,7 +299,7 @@ Runs on every request before the route handler.
 /api/admin/users  → require ADMIN role → 403 if not (search endpoint)
 /api/roster POST  → require authenticated session
 /api/teams/*      → require authenticated session
-/api/submissions  → require authenticated session
+/api/submissions POST/PATCH → require MOD role
 ```
 
 Public routes (no middleware): `/`, `/roster`, `/leaderboard`, `/leaderboard/host`, `/tournaments`, `/tournaments/[id]`
@@ -340,13 +339,13 @@ Public routes (no middleware): `/`, `/roster`, `/leaderboard`, `/leaderboard/hos
 ### Submissions
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/submissions` | Captain | Submit match result |
-| PATCH | `/api/submissions/[id]` | MOD+ | Verify or reject submission |
+| POST | `/api/submissions` | MOD+ | Enter a match result (lands as VERIFIED immediately) |
+| PATCH | `/api/submissions/[id]` | MOD+ | Correct matchId/eliminations/placement/screenshotUrl on an existing entry |
 
 ### Upload
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/upload-url` | Member | Get signed Supabase Storage URL |
+| POST | `/api/upload-url` | Member | Get signed Supabase Storage URL (roster avatars only) |
 
 ### Notifications
 | Method | Path | Auth | Description |
@@ -366,15 +365,16 @@ Public routes (no middleware): `/`, `/roster`, `/leaderboard`, `/leaderboard/hos
 
 ## 6. Screenshot Upload Flow
 
+Match screenshots are posted by the captain in Discord and reviewed there by a mod — they never touch app storage. The upload-url flow below is used only for roster avatars.
+
 ```
 1. Client compresses image (browser-image-compression, target < 500KB)
-2. Client POST /api/upload-url  →  server generates Supabase signed URL
+2. Client POST /api/upload-url (kind: 'roster')  →  server generates Supabase signed URL
 3. Client PUT directly to Supabase Storage via signed URL
 4. Client receives the public storage URL
-5. Client includes screenshot_url in the submission POST body
 ```
 
-Server never touches the image bytes. Supabase Storage bucket is set to **public** — Supabase generates UUID-based paths so URLs are unguessable in practice. The signed URL grants a single 60-second upload window; after upload the permanent public URL is stored in the DB and rendered directly in the mod verification view.
+Server never touches the image bytes. Supabase Storage bucket is set to **public** — Supabase generates UUID-based paths so URLs are unguessable in practice. The signed URL grants a single 60-second upload window.
 
 ---
 

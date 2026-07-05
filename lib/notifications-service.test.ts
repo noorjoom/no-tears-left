@@ -6,7 +6,6 @@ import {
   buildPartnerJoinedMessage,
   buildRosterApprovedMessage,
   buildRosterRejectedMessage,
-  buildSubmissionRejectedMessage,
   buildSubmissionVerifiedMessage,
   countUnreadForUser,
   createNotification,
@@ -47,23 +46,6 @@ describe('notifications-service: message builders', () => {
     expect(msg).toContain('17');
     expect(msg).toContain('m-1');
     expect(msg).toContain('Cup');
-  });
-
-  it('buildSubmissionRejectedMessage handles null and present note', () => {
-    expect(
-      buildSubmissionRejectedMessage({
-        tournamentName: 'Cup',
-        matchId: 'm-1',
-        reviewNote: null,
-      }),
-    ).not.toMatch(/Reviewer note/);
-    expect(
-      buildSubmissionRejectedMessage({
-        tournamentName: 'Cup',
-        matchId: 'm-1',
-        reviewNote: 'blurry screenshot',
-      }),
-    ).toMatch(/blurry screenshot/);
   });
 
   it('buildPartnerJoinedMessage interpolates inputs', () => {

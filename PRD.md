@@ -111,15 +111,16 @@ These are intentionally separate: a player can enter a tournament without being 
 5. A player may only be on one team per tournament.
 
 #### Score Submission
-- Only the **Captain** submits for the team.
-- Submission form fields:
+- The Captain posts their match screenshot in Discord. A **Mod** reviews it there and enters the result directly in the app — no captain-facing submission form.
+- Entry fields (mod-filled):
+  - **Team** — picked from teams in the tournament
   - **Match ID** — text (used for deduplication)
   - **Eliminations** — integer ≥ 0
   - **Placement** — integer 1–100
-  - **Screenshot** — image upload (compressed client-side before upload to Supabase Storage)
-- A team may submit multiple match results within the tournament window.
+  - **Discord link** — optional, for traceability back to the reviewed screenshot
+- A team may have multiple match results entered within the tournament window.
 - Duplicate guard: `(match_id, team_id)` unique constraint at DB level.
-- Submissions are `pending` until a Mod verifies them.
+- Entries land as `VERIFIED` immediately (the mod has already reviewed the screenshot on Discord before entering). A mod can edit eliminations/placement/match ID afterward to correct a mistake. A mod may enter a result for their own team — no self-review block on this flow.
 
 #### Scoring Formula
 - **Elimination points:** 1 pt per kill.
@@ -149,7 +150,7 @@ Accessible after Discord login. Sections:
 - **My Teams** — list of tournaments the member is registered in, with team status and submission count.
 - **Notifications** — in-app only. Events that trigger notifications:
   - Roster application approved/rejected.
-  - Score submission verified/rejected (with optional mod note).
+  - Score submission added by a mod (with computed points).
   - Invite link accepted by a partner.
 
 ### 4.7 Moderator Queue
@@ -161,12 +162,12 @@ Route: `/mod` — protected; `MOD` and `ADMIN` roles only. Tab switcher with thr
 - Approve or Reject buttons. Reject shows an optional note field.
 
 #### Submissions Tab
-- Side-by-side view: screenshot on the left, submitted data on the right.
-- **Verify** or **Reject** buttons. Reject sends a notification to the Captain.
+- Entry form for a mod to record a match result after reviewing the captain's screenshot on Discord: tournament, team, match ID, eliminations, placement, optional Discord link.
+- Submitting lands the result as `VERIFIED` immediately — no separate verify step.
 
 #### History Tab
 - Audit log of completed roster actions: which mod approved/rejected, timestamp, and review note.
-- Audit log of completed submission actions: which mod verified/rejected, timestamp, and review note.
+- Audit log of every entered submission: which mod entered it, timestamp, computed points. Mods can edit a submission's match ID/eliminations/placement here to fix a mistake.
 
 ### 4.8 Tournament Management (MOD/ADMIN)
 
@@ -216,7 +217,7 @@ teams
 
 submissions
   id, team_id, tournament_id, match_id, eliminations, placement,
-  screenshot_url, status (pending|verified|rejected), reviewed_by,
+  screenshot_url (optional Discord link), status (verified), reviewed_by,
   review_note, reviewed_at, submitted_at
   UNIQUE (match_id, team_id)
 
@@ -266,9 +267,9 @@ Derived from the NTL logo assets — molten chrome on pitch black.
 |---------|------------|
 | **Auth** | Discord OAuth only; sessions via Auth.js |
 | **Route protection** | Middleware guards `/admin/*` to MOD/ADMIN; `/dashboard/*` to any authenticated user |
-| **Anti-cheat** | DB unique constraint on `(match_id, team_id)`; screenshot required on every submission |
+| **Anti-cheat** | DB unique constraint on `(match_id, team_id)`; mod reviews the captain's screenshot on Discord before entering a result |
 | **Rate limiting** | Upstash rate limiting on: registration endpoint, submission endpoint, application endpoint |
-| **Image handling** | Client-side compression before upload; Supabase Storage buckets |
+| **Image handling** | Client-side compression before upload; Supabase Storage buckets (roster avatars only — match screenshots stay on Discord) |
 | **Styling** | Tailwind CSS; design system defined in Section 6 |
 | **Hosting** | Vercel (Next.js App Router); Supabase (PostgreSQL + Storage) |
 

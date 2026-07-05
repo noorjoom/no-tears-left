@@ -48,7 +48,6 @@ async function seedSub(
   matchId: string,
   eliminations: number,
   placement: number,
-  status: 'PENDING' | 'VERIFIED' | 'REJECTED' = 'VERIFIED',
 ) {
   const [s] = await h.db
     .insert(submissions)
@@ -58,8 +57,6 @@ async function seedSub(
       matchId,
       eliminations,
       placement,
-      screenshotUrl: 'u',
-      status,
     })
     .returning();
   return s;
@@ -90,20 +87,6 @@ describe('leaderboard-service', () => {
     expect(board[0].matches).toBe(2);
     expect(board[0].captainUsername).toBe('cap');
     expect(board[0].partnerUsername).toBe('par');
-  });
-
-  it('excludes PENDING and REJECTED submissions', async () => {
-    const cap = await seedUser(h, '1', 'cap');
-    const t = await seedTournament(h, cap.id);
-    const team = await seedTeam(h, t.id, cap.id, null, 'Team A');
-    await seedSub(h, team.id, t.id, 'm1', 10, 1, 'VERIFIED'); // 20
-    await seedSub(h, team.id, t.id, 'm2', 5, 1, 'PENDING'); // ignored
-    await seedSub(h, team.id, t.id, 'm3', 7, 1, 'REJECTED'); // ignored
-
-    const board = await getCumulativeLeaderboard(h.db);
-    expect(board).toHaveLength(1);
-    expect(board[0].totalPoints).toBe(20);
-    expect(board[0].matches).toBe(1);
   });
 
   it('orders by totalPoints DESC then matches DESC', async () => {

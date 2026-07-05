@@ -1,4 +1,4 @@
-import { and, desc, eq, ne } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { submissions, teams, tournaments, users } from '@/db/schema';
 import type { RosterDb } from './roster-service';
@@ -9,7 +9,6 @@ export type ServiceResult<T, E = string> =
 
 export type CreateSubmissionError =
   | 'TEAM_NOT_FOUND'
-  | 'NOT_CAPTAIN'
   | 'TOURNAMENT_NOT_FOUND'
   | 'WINDOW_CLOSED'
   | 'DUPLICATE_MATCH';
@@ -19,11 +18,11 @@ export interface CreateSubmissionInput {
   matchId: string;
   eliminations: number;
   placement: number;
-  screenshotUrl: string;
+  screenshotUrl?: string | null;
   actorId: string;
 }
 
-export async function createSubmission(
+export async function createVerifiedSubmission(
   db: RosterDb,
   input: CreateSubmissionInput,
   now: Date = new Date(),
@@ -34,9 +33,6 @@ export async function createSubmission(
     .where(eq(teams.id, input.teamId))
     .limit(1);
   if (!team) return { ok: false, error: 'TEAM_NOT_FOUND' };
-  if (team.captainId !== input.actorId) {
-    return { ok: false, error: 'NOT_CAPTAIN' };
-  }
 
   const [tourney] = await db
     .select()
@@ -60,7 +56,10 @@ export async function createSubmission(
         matchId: input.matchId,
         eliminations: input.eliminations,
         placement: input.placement,
-        screenshotUrl: input.screenshotUrl,
+        screenshotUrl: input.screenshotUrl ?? null,
+        status: 'VERIFIED',
+        reviewedBy: input.actorId,
+        reviewedAt: now,
       })
       .returning();
     return { ok: true, value: created };
@@ -81,63 +80,49 @@ function isUniqueViolation(err: unknown): boolean {
   );
 }
 
-export type ReviewSubmissionError =
-  | 'NOT_FOUND'
-  | 'NOT_PENDING'
-  | 'CONFLICT_OF_INTEREST'
-  | 'INVALID_DECISION';
+export type UpdateSubmissionError = 'NOT_FOUND' | 'DUPLICATE_MATCH';
 
-export interface ReviewSubmissionInput {
+export interface UpdateSubmissionInput {
   submissionId: string;
-  reviewerId: string;
-  decision: 'VERIFIED' | 'REJECTED';
-  reviewNote?: string | null;
+  matchId?: string;
+  eliminations?: number;
+  placement?: number;
+  screenshotUrl?: string | null;
 }
 
-export async function reviewSubmission(
+export async function updateSubmission(
   db: RosterDb,
-  input: ReviewSubmissionInput,
-  now: Date = new Date(),
-): Promise<ServiceResult<typeof submissions.$inferSelect, ReviewSubmissionError>> {
-  if (input.decision !== 'VERIFIED' && input.decision !== 'REJECTED') {
-    return { ok: false, error: 'INVALID_DECISION' };
-  }
-
-  const [sub] = await db
+  input: UpdateSubmissionInput,
+): Promise<ServiceResult<typeof submissions.$inferSelect, UpdateSubmissionError>> {
+  const [existing] = await db
     .select()
     .from(submissions)
     .where(eq(submissions.id, input.submissionId))
     .limit(1);
-  if (!sub) return { ok: false, error: 'NOT_FOUND' };
-  if (sub.status !== 'PENDING') return { ok: false, error: 'NOT_PENDING' };
+  if (!existing) return { ok: false, error: 'NOT_FOUND' };
 
-  const [team] = await db
-    .select()
-    .from(teams)
-    .where(eq(teams.id, sub.teamId))
-    .limit(1);
-  if (!team) return { ok: false, error: 'NOT_FOUND' };
-  if (team.captainId === input.reviewerId || team.partnerId === input.reviewerId) {
-    return { ok: false, error: 'CONFLICT_OF_INTEREST' };
+  try {
+    const [updated] = await db
+      .update(submissions)
+      .set({
+        ...(input.matchId !== undefined ? { matchId: input.matchId } : {}),
+        ...(input.eliminations !== undefined
+          ? { eliminations: input.eliminations }
+          : {}),
+        ...(input.placement !== undefined ? { placement: input.placement } : {}),
+        ...(input.screenshotUrl !== undefined
+          ? { screenshotUrl: input.screenshotUrl }
+          : {}),
+      })
+      .where(eq(submissions.id, input.submissionId))
+      .returning();
+    return { ok: true, value: updated };
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return { ok: false, error: 'DUPLICATE_MATCH' };
+    }
+    throw err;
   }
-
-  const [updated] = await db
-    .update(submissions)
-    .set({
-      status: input.decision,
-      reviewedBy: input.reviewerId,
-      reviewNote: input.reviewNote ?? null,
-      reviewedAt: now,
-    })
-    .where(
-      and(
-        eq(submissions.id, input.submissionId),
-        eq(submissions.status, 'PENDING'),
-      ),
-    )
-    .returning();
-  if (!updated) return { ok: false, error: 'NOT_PENDING' };
-  return { ok: true, value: updated };
 }
 
 export async function listSubmissionsForTeam(db: RosterDb, teamId: string) {
@@ -148,60 +133,20 @@ export async function listSubmissionsForTeam(db: RosterDb, teamId: string) {
     .orderBy(desc(submissions.submittedAt));
 }
 
-export async function listSubmissionsByStatus(
-  db: RosterDb,
-  status: 'PENDING' | 'VERIFIED' | 'REJECTED',
-) {
-  return db
-    .select()
-    .from(submissions)
-    .where(eq(submissions.status, status))
-    .orderBy(desc(submissions.submittedAt));
-}
+const reviewerUsers = alias(users, 'reviewer');
 
-export async function listSubmissionsByStatusWithContext(
-  db: RosterDb,
-  status: 'PENDING' | 'VERIFIED' | 'REJECTED',
-) {
+export async function listSubmissionsWithContext(db: RosterDb, limit = 50) {
   return db
     .select({
       id: submissions.id,
       teamId: submissions.teamId,
       teamName: teams.name,
-      captainId: teams.captainId,
-      partnerId: teams.partnerId,
       tournamentId: submissions.tournamentId,
       tournamentName: tournaments.name,
       matchId: submissions.matchId,
       eliminations: submissions.eliminations,
       placement: submissions.placement,
       screenshotUrl: submissions.screenshotUrl,
-      status: submissions.status,
-      submittedAt: submissions.submittedAt,
-      reviewNote: submissions.reviewNote,
-    })
-    .from(submissions)
-    .innerJoin(teams, eq(submissions.teamId, teams.id))
-    .innerJoin(tournaments, eq(submissions.tournamentId, tournaments.id))
-    .where(eq(submissions.status, status))
-    .orderBy(desc(submissions.submittedAt));
-}
-
-const reviewerUsers = alias(users, 'reviewer');
-
-export async function listReviewedSubmissionsWithContext(
-  db: RosterDb,
-  limit = 50,
-) {
-  return db
-    .select({
-      id: submissions.id,
-      teamName: teams.name,
-      tournamentName: tournaments.name,
-      matchId: submissions.matchId,
-      eliminations: submissions.eliminations,
-      placement: submissions.placement,
-      status: submissions.status,
       reviewNote: submissions.reviewNote,
       reviewedAt: submissions.reviewedAt,
       submittedAt: submissions.submittedAt,
@@ -211,7 +156,6 @@ export async function listReviewedSubmissionsWithContext(
     .innerJoin(teams, eq(submissions.teamId, teams.id))
     .innerJoin(tournaments, eq(submissions.tournamentId, tournaments.id))
     .leftJoin(reviewerUsers, eq(submissions.reviewedBy, reviewerUsers.id))
-    .where(ne(submissions.status, 'PENDING'))
-    .orderBy(desc(submissions.reviewedAt))
+    .orderBy(desc(submissions.submittedAt))
     .limit(limit);
 }
