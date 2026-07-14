@@ -13,6 +13,7 @@ const display = UnifrakturCook({
 export const metadata: Metadata = {
   title: 'No Tears Left',
   description: 'Fortnite Zero Build competitive community and tournament platform',
+  manifest: '/site.webmanifest',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
